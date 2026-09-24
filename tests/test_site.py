@@ -24,18 +24,18 @@ def test_table_payloads(site):
     meta = json.loads((site / "data" / sid / "meta.json").read_text())
     by = {(t["page"], t["table"]): t for t in meta["tables"]}
 
-    dc = json.loads((site / "data" / sid / by[("depth-charts", "query:depthChart.state.data")]["file"]).read_text())
+    dc = json.loads((site / "data" / sid / by[("depth-charts", "depthChart")]["file"]).read_text())
     assert dc["per_team"] and dc["has_team"] and len(dc["rows"]) == 780
     assert set(dc["tslug"]) == set(t["slug"] for t in idx["teams"])
     assert "playerid" in dc["hidden"] and dc["name_col"] == "PlayerName" and dc["fg_id_col"] == "playerid"
     assert "fg-acq" in dc["cls"] and all(len(r) == len(dc["columns"]) for r in dc["rows"])
     assert sum(p is not None for p in dc["pkey"]) == 780
 
-    inj = json.loads((site / "data" / sid / by[("injury-report", "query:injuryReport.state.data")]["file"]).read_text())
+    inj = json.loads((site / "data" / sid / by[("injury-report", "injuryReport")]["file"]).read_text())
     assert not inj["per_team"] and inj["has_team"] and "Team" not in inj["columns"]   # league-wide, team normalized
     assert "fg-il" in inj["cls"] and None not in inj["tslug"]
 
-    cl = json.loads((site / "data" / sid / by[("closer-depth-chart", "query:closerDepthChart.state.data[*].relievers")]["file"]).read_text())
+    cl = json.loads((site / "data" / sid / by[("closer-depth-chart", "closerDepthChart > relievers")]["file"]).read_text())
     assert len(set(cl["tslug"])) == 30
 
     players = json.loads((site / "data" / sid / "players.json").read_text())

@@ -35,7 +35,7 @@ def test_published_matches_raw_parsing(demo):
     raw, pub = sources.LocalSource(root), sources.PublishedSource(sources.FileReader(root))
     assert pub.available(sid) == raw.available(sid)
     teams = tuple(raw.available(sid)["depth-charts"])
-    tbl = "query:depthChart.state.data"
+    tbl = "depthChart"
     pd.testing.assert_frame_equal(raw.frame(sid, "depth-charts", teams, tbl),
                                   pub.frame(sid, "depth-charts", teams, tbl), check_dtype=False)
     sub = ("cubs", "yankees")
@@ -54,9 +54,9 @@ def test_published_matches_raw_parsing(demo):
     key = ri.search("Ashby").iloc[0]["key"]
     assert [(p, t) for p, t, _ in ri.profile(key)] == [(p, t) for p, t, _ in pi.profile(key)]
     spec = {"fields": [{"page": "depth-charts", "table": tbl, "column": "Pos", "agg": "first", "label": "Pos"},
-                       {"page": "payroll", "table": "query:payroll.state.data", "column": "Salary2026",
+                       {"page": "payroll", "table": "payroll", "column": "Salary2026",
                         "agg": "sum", "label": "Salary"},
-                       {"page": "injury-report", "table": "query:injuryReport.state.data", "column": "Injury",
+                       {"page": "injury-report", "table": "injuryReport", "column": "Injury",
                         "agg": "all", "label": "Injury"}], "rows_from": 2, "teams": ["*"]}
     pd.testing.assert_frame_equal(ri.combine(spec), pi.combine(spec), check_dtype=False)
     pd.testing.assert_frame_equal(ri.match_report(), pi.match_report(), check_dtype=False)
@@ -65,11 +65,11 @@ def test_published_matches_raw_parsing(demo):
         av = src.available(sid)
         ctx = views.Ctx(lambda p, t, s=src: s.tables_for(sid, p, t), av, lambda s=src: s.index(sid),
                         frame_fn=lambda p, tm, tb, s=src: s.frame(sid, p, tuple(tm), tb))
-        inj = ctx.view_frame("injury-report", ["cubs", "yankees"], "query:injuryReport.state.data")
+        inj = ctx.view_frame("injury-report", ["cubs", "yankees"], "injuryReport")
         assert set(inj["Team"]) <= {"Cubs", "Yankees"} and len(inj) > 0
-        txn = ctx.view_frame("transaction-tracker", ["cubs"], "query:transactions.state.data")
+        txn = ctx.view_frame("transaction-tracker", ["cubs"], "transactions")
         assert set(txn["Team"]) == {"Cubs"} and len(txn) == 5
-        cl = ctx.view_frame("closer-depth-chart", ["*"], "query:closerDepthChart.state.data[*].relievers")
+        cl = ctx.view_frame("closer-depth-chart", ["*"], "closerDepthChart > relievers")
         assert cl["Team"].nunique() == 30 and list(cl.columns)[0] == "Team"
 
 
@@ -90,7 +90,7 @@ def test_github_reader_reads_the_same_files(demo):
     with mock.patch.object(reader.session, "get", side_effect=fake_get):
         src = sources.PublishedSource(reader)
         assert [s["id"] for s in src.snapshots()] == [sid]
-        df = src.frame(sid, "payroll", ("cubs",), "query:payroll.state.data")
+        df = src.frame(sid, "payroll", ("cubs",), "payroll")
         assert set(df["Team"]) == {"Cubs"}
         assert src.gate_status()["last_attempt"] is None  # no pull log in the demo data
     url, params, headers = calls[0]

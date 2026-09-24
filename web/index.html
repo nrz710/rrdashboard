@@ -198,10 +198,17 @@ function filterRows(rows, cols, needle) {
   if (!needle) return rows;
   return rows.filter(r => cols.some(c => !isBlank(r[c]) && String(r[c]).toLowerCase().includes(needle)));
 }
-function toast(msg) {
+function toast(msg, ms = 2200) {
   const t = document.getElementById("toast");
   t.textContent = msg; t.classList.add("show");
-  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2200);
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), ms);
+}
+function downloadFailed(err) {
+  console.error(err);
+  const why = /load the Excel library/.test(err.message)
+    ? "The Excel library couldn't be loaded (some networks block cdnjs.cloudflare.com)."
+    : "The Excel file couldn't be created.";
+  toast(`${why} Use the CSV download instead.`, 8000);
 }
 function download(name, content, type) {
   const blob = content instanceof Blob ? content : new Blob([content], { type });
@@ -232,10 +239,12 @@ function tableHTML(view, maxRows = 1000) {
     if (r._cls) seen.add(r._cls);
     return `<tr class="${r._cls || ""}">` + cols.map(c => {
       let [txt, num] = fmt(r[c], c);
+      let tip = "";
+      if (!num && typeof r[c] === "string" && r[c].length > 160) { tip = ` title="${esc(r[c].slice(0, 2000))}"`; txt = esc(r[c].slice(0, 160)) + "…"; }
       if (c === view.nameCol && r._fgid !== undefined && !isBlank(r._fgid) && txt)
         txt = `<a href="https://www.fangraphs.com/statss.aspx?playerid=${encodeURIComponent(String(r._fgid).replace(/\.0$/, ""))}" target="_blank" rel="noopener">${txt}</a>`;
       if (c === "Team" && NAME2SLUG[r[c]]) txt = `<span title="${esc(r[c])}">${TEAM[NAME2SLUG[r[c]]].abbr}</span>`;
-      return `<td class="${num ? "num" : ""}">${txt}</td>`;
+      return `<td class="${num ? "num" : ""}"${tip}>${txt}</td>`;
     }).join("") + "</tr>";
   }).join("");
   let legend = "";
@@ -502,6 +511,7 @@ async function viewLeague() {
     ${sectionHTML(panel.title, `${view.rows.length.toLocaleString()} rows`)}${tableHTML(view)}
     <div class="row"><button class="primary" id="lg-add">Add this table to the dashboard</button>
       <button id="lg-dl">Download every ${esc(pageLabel(s.page))} table, all teams (.xlsx)</button>
+      <button id="lg-csv">Download this table (.csv)</button>
       <button id="lg-roll">${s.rollOpen ? "Hide" : "Show"} roll-up by team</button></div>
     ${roll}`;
 }
@@ -684,7 +694,8 @@ async function exportXLSX(items, title, fname) {
     while (used.has(name.toLowerCase())) { const suf = ` (${n++})`; name = base.slice(0, 31 - suf.length) + suf; }
     used.add(name.toLowerCase());
     const labels = v.labels || {};
-    const aoa = [v.cols.map(c => labels[c] || headerLabel(c)), ...v.rows.map(r => v.cols.map(c => isBlank(r[c]) ? "" : r[c]))];
+    const cell = x => isBlank(x) ? "" : (typeof x === "string" && x.length > 32000 ? x.slice(0, 32000) + "…" : x);
+    const aoa = [v.cols.map(c => labels[c] || headerLabel(c)), ...v.rows.map(r => v.cols.map(c => cell(r[c])))];
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws["!cols"] = v.cols.map((c, j) => ({ wch: Math.min(50, Math.max(...aoa.slice(0, 200).map(row => String(row[j] ?? "").length)) + 2) }));
     ws["!freeze"] = { xSplit: 0, ySplit: 1 };
@@ -750,6 +761,7 @@ document.addEventListener("click", async e => {
     case "lg-add": return addPanel({ ...UI._lgPanel });
     case "lg-addsum": return addPanel({ ...UI._lgSumm });
     case "lg-roll": UI.lg.rollOpen = !UI.lg.rollOpen; return render();
+    case "lg-csv": { const v = await panelView(UI._lgPanel); if (v) download(slug(UI._lgPanel.title) + ".csv", csvOf(v), "text/csv"); return; }
     case "lg-dl": {
       b.disabled = true; b.textContent = "Preparing…";
       try {
@@ -760,7 +772,7 @@ document.addEventListener("click", async e => {
           items.push([c.table.replace(/^query:/, "").replace(/\.state\.data/, ""), { cols: dispCols(t), rows: t.objs, labels: t.labels }]);
         }
         await exportXLSX(items, `${pageLabel(UI.lg.page)}, all teams`, `${UI.lg.page.replace(/\//g, "-")}_all_teams.xlsx`);
-      } catch (err) { toast(err.message); }
+      } catch (err) { downloadFailed(err); }
       return render();
     }
     case "pl-add": { const p = UI._pl; return addPanel({ kind: "player", player_key: p.key, player_name: p.Player, title: `Player card: ${p.Player}` }); }
@@ -780,7 +792,7 @@ document.addEventListener("click", async e => {
         if (b.id === "ex-xlsx") await exportXLSX(items, title, stem + ".xlsx");
         if (b.id === "ex-html") download(stem + ".html", await exportHTML(items, title), "text/html");
         if (b.id === "ex-csv") for (const [t, v] of items) download(slug(t) + ".csv", csvOf(v), "text/csv");
-      } catch (err) { toast(err.message); }
+      } catch (err) { if (b.id === "ex-xlsx") downloadFailed(err); else toast(err.message, 8000); }
       b.disabled = false; b.textContent = old; return;
     }
   }

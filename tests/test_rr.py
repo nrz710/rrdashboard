@@ -138,8 +138,8 @@ def test_fetch_ok_and_json():
 # ---- parse / views / export -----------------------------------------------
 def test_discover_tables():
     t = parse.discover_tables(NEXT, team_slug="athletics")
-    assert list(t) == ["query:depthChart.state.data.players"]
-    df = t["query:depthChart.state.data.players"]
+    assert list(t) == ["depthChart > players"]
+    df = t["depthChart > players"]
     assert df["name"].tolist() == ["Player A", "Player B"]
     assert "stats.war" in df.columns
 
@@ -148,7 +148,7 @@ def test_views_and_exports():
     tables = parse.discover_tables(NEXT)
     tf = lambda page, team: tables
     panel = {"title": "DC", "page": "depth-charts", "teams": ["athletics", "cubs"],
-             "table": "query:depthChart.state.data.players", "columns": ["name", "age"],
+             "table": "depthChart > players", "columns": ["name", "age"],
              "filter": "player a", "sort_by": "age", "ascending": False}
     ctx = views.Ctx(tf, {"depth-charts": ["athletics", "cubs"]}, None)
     df = views.panel_frame(ctx, panel)
@@ -242,3 +242,23 @@ def test_record_prior_pull_only_makes_gate_stricter(tmp_path, monkeypatch):
     assert cli.main(["record-prior-pull", future]) == 1
     assert cli.main(["record-prior-pull", "2026-09-24 08:00"]) == 1  # no time zone
     assert len(Gate(tmp_path).read_log()) == 1
+
+
+def test_real_rosterresource_structure():
+    """Shaped like a real RosterResource page (from a live pull): query wrappers with the
+    team in the key, a team list, and player rows nested a level down."""
+    def page(team, abbr, tid, n):
+        teams = [{"TeamId": i, "ShortName": f"T{i}", "AbbName": f"A{i}", "FullName": f"Team {i}"} for i in range(30)]
+        rows = [{"gameDate": "2026-09-16", "mlbamid": 656240 + i, "playerName": f"P {i}", "teamid": tid, "ip": 1.2}
+                for i in range(n)]
+        return {"props": {"pageProps": {"dehydratedState": {"queries": [
+            {"dehydratedAt": 1790277634344, "queryKey": ["depth-charts-all", tid, "AL", "W", team, abbr],
+             "queryHash": "x", "state": {"data": {"dataLoadDate": "1790262734", "dataTeamList": teams,
+                                                  "dataBullpenUsage": {"dataPlayers": rows}},
+                                         "dataUpdateCount": 1, "error": None}}]}}}}
+    a = parse.discover_tables(page("Athletics", "ATH", 10, 40), team_slug="athletics")
+    b = parse.discover_tables(page("Chicago Cubs", "CHC", 17, 5), team_slug="cubs")
+    assert set(a) == set(b) == {"depth-charts-all > dataTeamList", "depth-charts-all > dataBullpenUsage.dataPlayers"}
+    df = a["depth-charts-all > dataBullpenUsage.dataPlayers"]
+    assert list(df.columns) == ["gameDate", "mlbamid", "playerName", "teamid", "ip"] and len(df) == 40
+    assert not any(c.lower().startswith(("state", "querykey", "dehydrated")) for t in a.values() for c in t.columns)

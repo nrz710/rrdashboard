@@ -36,32 +36,61 @@ def _is_scalar(v) -> bool:
     return v is None or isinstance(v, (str, int, float, bool))
 
 
+def _is_query_entry(d) -> bool:
+    """A react-query cache entry (what RosterResource pages embed): a wrapper, not data."""
+    return isinstance(d, dict) and "queryKey" in d and "state" in d
+
+
 def _is_record_list(node: list) -> bool:
     if not node or not all(isinstance(x, dict) for x in node):
         return False
+    if any(_is_query_entry(x) for x in node):
+        return False  # descend into each entry and find the real tables inside
     sample = node[:25]
     keys = set().union(*(d.keys() for d in sample))
     if len(keys) < 2:
         return False
     values = [v for d in sample for v in d.values()]
-    return sum(_is_scalar(v) for v in values) / max(len(values), 1) >= 0.5
+    if sum(_is_scalar(v) for v in values) / max(len(values), 1) < 0.5:
+        return False
+    # Rows that carry big nested blocks are containers, not tables: look inside instead.
+    for v in values:
+        if not _is_scalar(v) and len(json.dumps(v, default=str)) > 2000:
+            return False
+    return True
 
 
 def _query_label(query_key) -> str:
-    """Stable name for a react-query cache entry (strings only, so team IDs don't leak in)."""
+    """Stable name for a react-query cache entry: its first string, the query's name.
+    The rest of the key (team id, league, division, team name...) differs per team page,
+    so it's left out; that way the same table gets the same name on all 30 teams."""
     if isinstance(query_key, list):
-        parts = [p for p in query_key if isinstance(p, str)]
-        return "/".join(parts) or "query"
+        for p in query_key:
+            if isinstance(p, str) and p:
+                return p
+        return "query"
     return str(query_key)
 
 
 def _clean_id(path: str, team_slug: str | None) -> str:
+    """Readable, team-independent table name, e.g. 'depth-charts-all > dataBullpenUsage.dataPlayers'."""
     for prefix in ("props.pageProps.", "props."):
         if path.startswith(prefix):
             path = path[len(prefix):]
             break
+    if path.startswith("query:"):
+        label, _, rest = path[len("query:"):].partition(".")
+        rest = "." + rest if rest else ""
+        for noise in (".state.data", ".state"):
+            if rest.startswith(noise):
+                rest = rest[len(noise):]
+                break
+        rest = rest.lstrip(".")
+        if rest.startswith("[*]."):
+            rest = rest[4:]
+        path = f"{label} > {rest}" if rest else label
     if team_slug:
-        path = path.replace(team_slug, "{team}")
+        path = re.sub(re.escape(team_slug), "{team}", path, flags=re.I)
     return path or "root"
 
 
