@@ -1,0 +1,17 @@
+# Local data. In the hosted setup snapshots live on the `data` branch, never on main.
+data/
+demo_data/
+*.xlsx
+*.zip
+
+# Secrets
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+.DS_Store
+dist/

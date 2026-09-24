@@ -1,0 +1,19 @@
+# Settings for a public dashboard: anyone with the link can use it.
+
+[client]
+toolbarMode = "minimal"     # visitors see no developer menu
+showErrorDetails = "none"   # visitors see a generic message; full errors go to the app logs
+
+[server]
+maxUploadSize = 1           # MB; only small layout files are ever uploaded
+
+[theme]
+base = "light"
+primaryColor = "#50ae26"            # FanGraphs green
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F1F1F1"
+textColor = "#000000"
+font = "sans-serif"
+
+[browser]
+gatherUsageStats = false
