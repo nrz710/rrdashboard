@@ -1774,6 +1774,7 @@ jobs:
 
   deploy:
     needs: site
+    if: always() && needs.site.result == 'success'
     runs-on: ubuntu-latest
     concurrency:
       group: pages
