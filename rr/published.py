@@ -62,9 +62,9 @@ def league_wide_warnings(tables: dict) -> list[str]:
         best_teams, biggest = 0, 0
         for df in mine.values():
             biggest = max(biggest, len(df))
-            col = views.team_column(df)
+            col, slugs = views.team_slugs(df)
             if col is not None:
-                best_teams = max(best_teams, df[col].map(config.team_slug_of).nunique())
+                best_teams = max(best_teams, len({x for x in slugs if x}))
         label = config.PAGE_LABELS.get(page, page)
         if best_teams == 0:
             warnings.append(f"{label}: no team column recognized in the league-wide page, so it can't be "
@@ -145,7 +145,7 @@ def publish(data_dir: Path, snap_dir: Path, *, keep: int = config.PUBLISHED_RETE
     _write_frame(tmp / "players.json.gz", idx.players)
     public_manifest = {k: v for k, v in manifest.items() if k != "results"}
     _write_json(tmp / "meta.json", {
-        "id": sid, "manifest": public_manifest, "warnings": warnings,
+        "id": sid, "manifest": public_manifest, "warnings": warnings, "parser_version": parse.PARSER_VERSION,
         "available": {p: [t or "" for t in ts] for p, ts in avail.items()},
         "tables": meta_tables})
 
@@ -188,3 +188,24 @@ def write_index(data_dir: Path) -> None:
     tmp = root / ".index.json.tmp"
     _write_json(tmp, {"snapshots": entries})
     tmp.replace(root / "index.json")
+
+
+def published_version(data_dir: Path, sid: str) -> int | None:
+    meta = published_dir(data_dir) / sid / "meta.json"
+    if not meta.exists():
+        return None
+    return json.loads(meta.read_text(encoding="utf-8")).get("parser_version", 1)
+
+
+def ensure_current(data_dir: Path, log: Callable[[str], None] = print) -> list[str]:
+    """Re-parse every stored raw snapshot whose published copy is missing or was made by an
+    older parser. Reads only stored pages; never contacts FanGraphs."""
+    redone = []
+    for snap in sorted(store.list_snapshots(data_dir)):  # oldest first, so the index ends newest-first
+        if not store.available(snap):
+            continue
+        if published_version(data_dir, snap.name) != parse.PARSER_VERSION:
+            log(f"Re-parsing {snap.name} with parser version {parse.PARSER_VERSION} (stored pages only).")
+            publish(data_dir, snap, log=log)
+            redone.append(snap.name)
+    return redone

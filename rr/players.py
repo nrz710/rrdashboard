@@ -33,7 +33,7 @@ ID_COLUMNS = {
     "mlbamid": "mlbam", "xmlbamid": "mlbam", "mlbid": "mlbam", "keymlbam": "mlbam", "mlbamplayerid": "mlbam",
 }
 NAME_COLUMNS = ["playername", "fullname", "playerfullname", "player", "name"]
-TEAM_COLUMNS = ["team", "teamname", "teamabbr", "teamabbrev", "abbname", "org", "organization", "club", "tm"]
+TEAM_COLUMNS = ["team", "teamabbname", "teamname", "teamabbr", "teamabbrev", "abbname", "org", "organization", "club", "tm", "teamid", "playerteamid"]
 
 _TEAM_WORDS = {n.lower() for n in config.TEAMS} | {
     "red sox", "white sox", "yankees", "orioles", "rays", "blue jays", "guardians", "tigers", "royals",
@@ -254,7 +254,9 @@ class PlayerIndex(IndexBase):
             if team:
                 d["_team"] = config.SLUG_TO_TEAM.get(team, team)
             elif tcol:  # league-wide page: use its own team column, normalized to team names
-                d["_team"] = d[tcol].map(lambda v: config.SLUG_TO_TEAM.get(config.team_slug_of(v) or "", v))
+                from .views import team_slugs
+                _, slugs = team_slugs(d)
+                d["_team"] = [config.SLUG_TO_TEAM.get(sl or "", v) for sl, v in zip(slugs, d[tcol])]
             else:
                 d["_team"] = None
             stacked[(page, tid)].append(d)
@@ -269,6 +271,8 @@ class PlayerIndex(IndexBase):
             tokens_col, names_col = [], []
             for _, row in d.iterrows():
                 toks = [f"{ns}:{v}" for c, ns in ids.items() if (v := _clean_id(row.get(c)))]
+                for t in toks:
+                    uf.find(t)  # register every id, including rows that carry only one
                 for t in toks[1:]:
                     uf.union(toks[0], t)
                 nm = norm_name(row.get(name_col)) if name_col else None

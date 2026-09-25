@@ -18,6 +18,7 @@ Nothing here contacts FanGraphs.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import tempfile
 from datetime import datetime, timezone
@@ -51,27 +52,47 @@ def _status(data_dir: Path) -> dict:
             "next_allowed": iso(s["next_allowed"]) if s["last_attempt"] else None, "halted": s["halted"]}
 
 
+_NOISE = re.compile(r"(loaddate|upurl|route$|mlbauto|minorbamid|minormasterid|retroid|npbbisid|^dbid$|statsid|"
+                    r"^csid$|valueoverride|^oplayerid$|^teamid$|^playerteamid$|hidden|^dbteam$|"
+                    r"^type$|^typeid|^loaddate|^contractid$)")
+
+
+def _is_noise(col: str, cols: set) -> bool:
+    n = fgstyle.norm(col)
+    if _NOISE.search(n) or n in fgstyle._ID_COLS:
+        return True
+    base = re.sub(r"\d+$", "", str(col))  # age1, playerid2... duplicates of another column
+    return base != str(col) and base in cols
+
+
 def _table_payload(df: pd.DataFrame, columns: list[str], per_team: bool, season: int) -> dict:
     data_cols = [c for c in columns if c in df.columns]
     if per_team:
         tslug = [s or None for s in df["_slug"]]
     else:
-        col = views.team_column(df[data_cols]) if data_cols else None
-        if col is not None:
-            tslug = [config.team_slug_of(v) for v in df[col]]
+        col, tslug = views.team_slugs(df[data_cols]) if data_cols else (None, [None] * len(df))
+        if col is not None and col.lower() in ("team", "teamabbname", "tm"):
             data_cols.remove(col)
-        else:
-            tslug = [None] * len(df)
-    body = df[data_cols]
+    # drop columns with no values at all in this table
+    data_cols = [c for c in data_cols if df[c].map(lambda v: v is not None and v == v and v != "").any()]
+    body = df[data_cols].copy()
+    for c in body.columns:  # shorter numbers: 108.7966031264559 -> 108.7966
+        if pd.api.types.is_float_dtype(body[c]):
+            body[c] = body[c].round(4)
     by_norm = {fgstyle.norm(c): c for c in body.columns}
     cls = [fgstyle.row_class(row, by_norm, season) for _, row in body.iterrows()]
     name_col = next((by_norm[n] for n in fgstyle._NAME_COLS if n in by_norm), None)
     fg_id_col = next((by_norm[n] for n in _FG_ID if n in by_norm), None)
+    url_col = by_norm.get("upurl")
+    colset = set(map(str, data_cols))
     hidden = [c for c in data_cols if name_col and fgstyle.norm(c) in fgstyle._ID_COLS]
+    useful = [c for c in data_cols if c not in hidden and not _is_noise(c, colset)]
+    if name_col in useful:  # player name first
+        useful = [name_col] + [c for c in useful if c != name_col]
     return {
         "columns": data_cols, "labels": {c: fgstyle.header_label(c) for c in data_cols},
-        "hidden": hidden, "name_col": name_col, "fg_id_col": fg_id_col,
-        "per_team": per_team, "has_team": any(tslug),
+        "hidden": hidden, "default_cols": useful[:10], "name_col": name_col, "fg_id_col": fg_id_col,
+        "url_col": url_col, "per_team": per_team, "has_team": any(tslug),
         "rows": _json_values(body) if data_cols else [[] for _ in range(len(df))],
         "tslug": tslug, "pkey": [p if isinstance(p, str) else None for p in df["_pkey"]], "cls": cls,
     }
@@ -82,12 +103,22 @@ def build(data_dir: Path, out_dir: Path, *, log=print) -> dict:
     if out_dir.exists():
         shutil.rmtree(out_dir)
     (out_dir / "data").mkdir(parents=True)
-    shutil.copy(WEB_DIR / "index.html", out_dir / "index.html")
+    build_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    (out_dir / "index.html").write_text(
+        (WEB_DIR / "index.html").read_text(encoding="utf-8").replace("__BUILD__", build_id), encoding="utf-8")
     (out_dir / "fg.css").write_text(fgstyle.css(), encoding="utf-8")
     (out_dir / ".nojekyll").write_text("", encoding="utf-8")  # serve files as-is
 
+    from . import parse, published
+    if data_dir.exists():
+        published.ensure_current(data_dir, log=log)
     src = PublishedSource(FileReader(data_dir))
-    snaps = src.snapshots()
+    snaps = []
+    for snap in src.snapshots():
+        if published.published_version(data_dir, snap["id"]) == parse.PARSER_VERSION:
+            snaps.append(snap)
+        else:
+            log(f"Skipping {snap['id']}: parsed by an older version and its raw pages are no longer stored.")
     season = config.current_season()
     for snap in snaps:
         sid = snap["id"]
@@ -121,12 +152,13 @@ def build(data_dir: Path, out_dir: Path, *, log=print) -> dict:
     teams = [{"slug": s, "name": config.SLUG_TO_TEAM[s], "abbr": config.TEAM_ABBR[s],
               "league": "AL" if s in config.AL else "NL"} for s in config.TEAMS.values()]
     _dump(out_dir / "data" / "index.json", {
-        "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "generated": build_id,
         "snapshots": [{"id": s["id"], "manifest": s["manifest"]} for s in snaps],
         "status": _status(data_dir), "season": season,
         "teams": teams,
         "pages": [{"key": k, "label": v, "team_tool": k in config.TEAM_TOOLS} for k, v in config.PAGE_LABELS.items()],
         "header_labels": fgstyle.HEADER_LABELS,
+        "preferred": config.PREFERRED_TABLES,
         "attribution": "Source: FanGraphs RosterResource (fangraphs.com)",
     })
     log(f"Site written to {out_dir} ({len(snaps)} snapshot(s)).")

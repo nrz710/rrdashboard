@@ -45,11 +45,17 @@ HEADER_LABELS = {
     "howacquired": "HOW ACQUIRED", "servicetime": "MLB SERVICE TIME", "options": "OPTIONS",
     "injury": "INJURY/SURGERY", "status": "STATUS", "role": "ROLE", "team": "TEAM",
     "transaction": "TRANSACTION/UPDATE", "date": "DATE", "contract": "CONTRACT",
+    "playernamedisplay": "PLAYER", "jnum": "#", "handed": "B/T", "acquired": "HOW ACQUIRED",
+    "injurysurgery": "INJURY/SURGERY", "transdesc": "TRANSACTION", "transdate": "DATE",
+    "transcategory": "CATEGORY", "latestupdate": "LATEST UPDATE", "returndate": "RETURN",
+    "eligibledate": "ELIGIBLE", "gamedate": "DATE", "bo": "ORDER", "is40man": "40-MAN",
+    "servicetime": "MLB SERVICE TIME", "signyear": "YEAR", "signround": "RD", "signpick": "PICK",
+    "originalteam": "SIGNING TEAM", "roster40": "40-MAN",
 }
 
 # Column groups drawn above the headers when these columns appear side by side.
 COLUMN_GROUPS = {
-    "ORIGINAL SIGNING INFO": {"year", "signingteam", "rd", "pick"},
+    "ORIGINAL SIGNING INFO": {"year", "signingteam", "rd", "pick", "signyear", "signround", "signpick", "originalteam"},
     "PROSPECT RANK": {"ovrrank", "orgrank"},
     "POWER RANK": {"ovr", "last7days", "last14days", "last21days"},
 }
@@ -91,8 +97,9 @@ def row_class(row: pd.Series, cols_by_norm: dict[str, str], season: int) -> str:
     for c in ("status", "ilstatus"):
         if c in cols_by_norm and isinstance(row[cols_by_norm[c]], str) and _IL_RE.match(row[cols_by_norm[c]]):
             return "fg-il"
-    if "howacquired" in cols_by_norm and _acquired_recently(row[cols_by_norm["howacquired"]], season):
-        return "fg-acq"
+    for c in ("howacquired", "acquired"):
+        if c in cols_by_norm and _acquired_recently(row[cols_by_norm[c]], season):
+            return "fg-acq"
     return ""
 
 

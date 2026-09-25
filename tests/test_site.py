@@ -47,3 +47,22 @@ def test_site_with_no_data(tmp_path):
     out = tmp_path / "_site"
     sitemod.build(tmp_path / "empty", out, log=lambda _: None)
     assert json.loads((out / "data" / "index.json").read_text())["snapshots"] == []
+
+
+def test_site_build_reparses_data_from_an_older_parser(tmp_path):
+    """Published data made by an older parser is rebuilt from the stored raw pages."""
+    import make_demo_data
+    from rr import parse, published, site as sitemod
+    snap = make_demo_data.main(tmp_path)
+    meta = tmp_path / "published" / snap.name / "meta.json"
+    m = json.loads(meta.read_text())
+    m.pop("parser_version"); m["tables"] = m["tables"][:1]  # pretend it's old and wrong
+    meta.write_text(json.dumps(m))
+    assert published.published_version(tmp_path, snap.name) == 1
+    out = tmp_path / "_site"
+    sitemod.build(tmp_path, out, log=lambda _: None)
+    assert published.published_version(tmp_path, snap.name) == parse.PARSER_VERSION
+    built = json.loads((out / "data" / snap.name / "meta.json").read_text())
+    assert len(built["tables"]) > 10
+    html = (out / "index.html").read_text()
+    assert "__BUILD__" not in html and "fg.css?v=" in html

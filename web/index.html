@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>RosterResource dashboard</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚾</text></svg>">
-<link rel="stylesheet" href="fg.css">
+<link rel="stylesheet" href="fg.css?v=__BUILD__">
 <style>
   :root { --green:#50ae26; --border:#c8c8c8; --muted:#666; --soft:#f1f1f1; }
   * { box-sizing: border-box; }
@@ -85,6 +85,8 @@ const NAME2SLUG = {};     // team name -> slug
 let HL = {};              // header labels
 
 async function getJSON(url) {
+  // Every file carries the build's version, so a rebuilt site is never mixed with cached old files.
+  if (!url.includes("?") && D.index && D.index.generated) url += "?v=" + encodeURIComponent(D.index.generated);
   const r = await fetch(url, { cache: url.includes("?t=") ? "no-store" : "default" });
   if (!r.ok) throw new Error(`${url} (HTTP ${r.status})`);
   return r.json();
@@ -116,6 +118,7 @@ async function table(page, tid) {
       t.columns.forEach((c, j) => { o[c] = r[j]; });
       o._slug = t.tslug[i]; o._pkey = t.pkey[i]; o._cls = t.cls[i];
       if (t.fg_id_col) o._fgid = o[t.fg_id_col];
+      if (t.url_col && typeof o[t.url_col] === "string" && o[t.url_col].startsWith("/")) o._url = "https://www.fangraphs.com" + o[t.url_col];
       return o;
     });
     t.page = page; t.tid = tid;
@@ -131,12 +134,18 @@ async function players() {
   }
   return D.players[D.sid];
 }
+function defaultCols(t, all) {
+  const d = (t.default_cols || []).filter(c => all.includes(c));
+  return d.length ? d : all.slice(0, 10);
+}
 function dispCols(t) {
   return (t.has_team ? ["Team"] : []).concat(t.columns.filter(c => !t.hidden.includes(c)));
 }
 function coverage(m, page) {
+  const pref = (D.index.preferred || {})[page];
+  const isPref = t => pref && (t.table === pref || t.table.endsWith("> " + pref) || t.table.endsWith("." + pref)) ? 0 : 1;
   return m.tables.filter(t => t.page === page)
-    .sort((a, b) => (a.same - b.same) || (b.teams - a.teams) || (b.rows - a.rows));
+    .sort((a, b) => (isPref(a) - isPref(b)) || (a.same - b.same) || (b.teams - a.teams) || (b.rows - a.rows));
 }
 function pageLabel(k) { const p = D.index.pages.find(x => x.key === k); return p ? p.label : k; }
 function perTeam(m, page) { return (m.available[page] || []).some(t => t); }
@@ -228,7 +237,8 @@ const fmtTime = s => { if (!s) return "never"; const d = new Date(s); return isN
 function sectionHTML(title, sub) {
   return `<div class="fg-section"><span>${esc(title)} ▼</span>${sub ? `<span class="fg-section-sub">${esc(sub)}</span>` : ""}</div>`;
 }
-function tableHTML(view, maxRows = 1000) {
+let SHOW = 300;  // rows drawn at once; "Show more" adds 500
+function tableHTML(view, maxRows = SHOW) {
   const { cols, rows } = view;
   const labels = view.labels || {};
   if (!rows || !rows.length) return `<div class="fg-empty">No rows.</div>`;
@@ -241,8 +251,10 @@ function tableHTML(view, maxRows = 1000) {
       let [txt, num] = fmt(r[c], c);
       let tip = "";
       if (!num && typeof r[c] === "string" && r[c].length > 160) { tip = ` title="${esc(r[c].slice(0, 2000))}"`; txt = esc(r[c].slice(0, 160)) + "…"; }
-      if (c === view.nameCol && r._fgid !== undefined && !isBlank(r._fgid) && txt)
-        txt = `<a href="https://www.fangraphs.com/statss.aspx?playerid=${encodeURIComponent(String(r._fgid).replace(/\.0$/, ""))}" target="_blank" rel="noopener">${txt}</a>`;
+      if (c === view.nameCol && txt && (r._url || (r._fgid !== undefined && !isBlank(r._fgid)))) {
+        const href = r._url || `https://www.fangraphs.com/statss.aspx?playerid=${encodeURIComponent(String(r._fgid).replace(/\.0$/, ""))}`;
+        txt = `<a href="${esc(href)}" target="_blank" rel="noopener">${txt}</a>`;
+      }
       if (c === "Team" && NAME2SLUG[r[c]]) txt = `<span title="${esc(r[c])}">${TEAM[NAME2SLUG[r[c]]].abbr}</span>`;
       return `<td class="${num ? "num" : ""}"${tip}>${txt}</td>`;
     }).join("") + "</tr>";
@@ -254,7 +266,8 @@ function tableHTML(view, maxRows = 1000) {
     if (seen.has("fg-il")) chips.push(`<span class="fg-chip fg-il">Injured list</span>`);
     legend = `<div class="fg-legend"><b>Legend:</b>${chips.join("")}</div>`;
   }
-  const more = rows.length > maxRows ? `<div class="fg-more">Showing ${maxRows.toLocaleString()} of ${rows.length.toLocaleString()} rows. Exports include every row.</div>` : "";
+  const more = rows.length > maxRows ? `<div class="fg-more">Showing ${maxRows.toLocaleString()} of ${rows.length.toLocaleString()} rows.
+    <button data-more="1">Show ${Math.min(500, rows.length - maxRows).toLocaleString()} more</button> Downloads always include every row.</div>` : "";
   return `${legend}<div class="fg-wrap"><table class="fg-table"><thead>${head}</thead><tbody>${body}</tbody></table></div>${more}`;
 }
 function teamStripHTML(sel, id) {
@@ -385,7 +398,7 @@ async function panelView(p) {
     let rows = slugs.length ? t.objs.filter(o => slugs.includes(o._slug)) : t.objs;
     if (kind === "summary") return { ...rollup(rows, p.by, p.value, p.how), labels: {} };
     let cols = (p.columns || []).filter(c => t.columns.includes(c));
-    if (!cols.length) cols = dispCols(t).filter(c => c !== "Team");
+    if (!cols.length) cols = defaultCols(t, dispCols(t).filter(c => c !== "Team"));
     if (t.has_team) cols = ["Team", ...cols.filter(c => c !== "Team")];
     rows = filterRows(rows, cols, p.filter);
     rows = sortRows(rows, p.sort_by, p.ascending !== false);
@@ -476,7 +489,7 @@ async function viewLeague() {
   const t = await table(s.page, tid);
   const all = dispCols(t).filter(c => c !== "Team");
   const ck = s.page + "\u0000" + tid;
-  if (!s.cols[ck]) s.cols[ck] = all.slice(0, 10);
+  if (!s.cols[ck]) s.cols[ck] = defaultCols(t, all);
   const cols = s.cols[ck].filter(c => all.includes(c));
   const pt = perTeam(m, s.page);
   const panel = { kind: "table", page: s.page, teams: s.teams.length ? [...s.teams] : ["*"], table: tid, columns: cols,
@@ -606,7 +619,7 @@ async function viewCustom() {
   const t = await table(s.page, tid);
   const all = dispCols(t).filter(c => c !== "Team");
   const ck = s.page + "\u0000" + tid;
-  if (!s.cols[ck]) s.cols[ck] = all.slice(0, 10);
+  if (!s.cols[ck]) s.cols[ck] = defaultCols(t, all);
   const cols = s.cols[ck].filter(c => all.includes(c));
   const who = !pageInfo.team_tool ? "League-wide" : (s.teams.length ? s.teams.map(x => TEAM[x].abbr).join(", ") : "All teams");
   const title = s.title || `${pageLabel(s.page)}: ${who}`;
@@ -704,7 +717,7 @@ async function exportXLSX(items, title, fname) {
   XLSX.writeFile(wb, fname);
 }
 async function exportHTML(items, title) {
-  if (!D.css) D.css = await (await fetch("fg.css")).text();
+  if (!D.css) D.css = await (await fetch("fg.css?v=" + encodeURIComponent(D.index.generated))).text();
   const m = D.index.snapshots.find(s => s.id === D.sid).manifest;
   const blocks = items.map(([t, v]) => `<div class="fg-block">${sectionHTML(t, v.rows.length + " rows")}${tableHTML(v, 1e9)}
     <div class="fg-src">${esc(D.index.attribution)}. Snapshot ${esc(snapLabel(m))}.</div></div>`).join("\n");
@@ -726,7 +739,8 @@ document.addEventListener("click", async e => {
   const b = e.target.closest("button, a[data-clear]");
   if (!b) return;
   const d = b.dataset;
-  if (d.tab) { UI.tab = d.tab; renderTabs(); return render(); }
+  if (d.tab) { UI.tab = d.tab; SHOW = 300; renderTabs(); return render(); }
+  if (d.more) { SHOW += 500; return render(); }
   if (d.strip) {
     e.preventDefault();
     const s = UI[d.strip]; const i = s.teams.indexOf(d.team);
@@ -734,7 +748,7 @@ document.addEventListener("click", async e => {
     return render();
   }
   if (d.clear) { e.preventDefault(); UI[d.clear].teams = []; return render(); }
-  if (d.lgpage) { UI.lg.page = d.lgpage; UI.lg.colOpen = false; return render(); }
+  if (d.lgpage) { UI.lg.page = d.lgpage; UI.lg.colOpen = false; SHOW = 300; return render(); }
   if (d.cupage) { UI.cu.page = d.cupage; UI.cu.title = ""; UI.cu.teams = []; UI.cu.colOpen = false; return render(); }
   if (d.pkey) { UI.pl.key = d.pkey; return render(); }
   if (d.colsAll || d.colsNone) {

@@ -127,6 +127,16 @@ SEASON_PARAM: dict[str, str] = {}
 
 # --- Storage --------------------------------------------------------------
 
+# The table each tool opens on in the dashboard (matched against the end of the table name).
+PREFERRED_TABLES: dict[str, str] = {
+    "depth-charts": "dataRoster",
+    "payroll": "dataContract.contractSummary",
+    "lineup-tracker": "depthChartsData",
+    "closer-depth-chart": "dataPlayers",
+    "injury-report": "injury-report",
+    "transaction-tracker": "transaction-tracker",
+}
+
 # Retention. Everything lives in ./data locally and on the repo's `data` branch on GitHub,
 # which is replaced by a single commit each time, so git history never grows.
 RAW_RETENTION = 2         # raw page snapshots kept (enough to re-parse with `rr reingest`)
@@ -160,8 +170,25 @@ _ALIAS_TO_SLUG.update({slug: slug for slug in _TEAM_ALIASES})
 _ALIAS_TO_SLUG.update({name.lower(): slug for name, slug in TEAMS.items()})
 
 
-def team_slug_of(value) -> str | None:
-    """Map a team as written in the data (abbreviation, name, slug) to our slug."""
+# FanGraphs' numeric TeamId, as listed in RosterResource's own team list (dataTeamList).
+FG_TEAM_ID: dict[int, str] = {
+    1: "angels", 2: "orioles", 3: "red-sox", 4: "white-sox", 5: "guardians", 6: "tigers", 7: "royals",
+    8: "twins", 9: "yankees", 10: "athletics", 11: "mariners", 12: "rays", 13: "rangers", 14: "blue-jays",
+    15: "diamondbacks", 16: "braves", 17: "cubs", 18: "reds", 19: "rockies", 20: "marlins", 21: "astros",
+    22: "dodgers", 23: "brewers", 24: "nationals", 25: "mets", 26: "phillies", 27: "pirates",
+    28: "cardinals", 29: "padres", 30: "giants",
+}
+
+
+def team_slug_of(value, numeric: bool = False) -> str | None:
+    """Map a team as written in the data (abbreviation, name, slug; or, with numeric=True,
+    FanGraphs' TeamId) to our slug."""
+    if numeric:
+        try:
+            f = float(value)
+        except (TypeError, ValueError):
+            return None
+        return FG_TEAM_ID.get(int(f)) if f == f and float(int(f)) == f else None
     if not isinstance(value, str):
         return None
     return _ALIAS_TO_SLUG.get(value.strip().lower())

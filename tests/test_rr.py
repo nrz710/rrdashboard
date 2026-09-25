@@ -262,3 +262,19 @@ def test_real_rosterresource_structure():
     df = a["depth-charts-all > dataBullpenUsage.dataPlayers"]
     assert list(df.columns) == ["gameDate", "mlbamid", "playerName", "teamid", "ip"] and len(df) == 40
     assert not any(c.lower().startswith(("state", "querykey", "dehydrated")) for t in a.values() for c in t.columns)
+
+
+def test_repeated_blocks_are_merged_into_one_table():
+    """Real pages repeat a block per game / contract. That must become ONE table with the
+    block's own fields (e.g. the game date) carried onto every row, not one table per block."""
+    games = [{"gameDate": f"2026-09-{d:02d}", "opp": "NYM",
+              "dataPlayers": [{"playerid": str(100 + i), "playerName": f"P{i}", "BO": i + 1, "note": "x" * 300}
+                              for i in range(9)]} for d in range(1, 21)]
+    payload = {"props": {"pageProps": {"dehydratedState": {"queries": [
+        {"queryKey": ["roster-resource/lineup-tracker/data", 17], "state": {"data": [{"lineupData": {"lineupTracker": games}}]}}]}}}}
+    t = parse.discover_tables(payload, team_slug="cubs")
+    lt = "lineup-tracker > lineupData.lineupTracker.dataPlayers"
+    assert lt in t and len(t) <= 3, list(t)
+    df = t[lt]
+    assert len(df) == 180 and list(df.columns)[:3] == ["playerid", "playerName", "BO"] and "gameDate" in df.columns
+    assert df["gameDate"].nunique() == 20

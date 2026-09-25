@@ -174,3 +174,12 @@ def test_league_wide_warnings():
     assert any("only mentions 10 teams" in x for x in w)
     w = publish.league_wide_warnings({("transaction-tracker", None, "t"): pd.DataFrame({"x": [1, 2]})})
     assert any("no team column" in x for x in w)
+
+
+def test_rows_with_a_single_id_kind():
+    """Real RosterResource rows often carry only an MLBAM id (found on the first live pull)."""
+    a = T([{"mlbamid": 696286, "playerName": "A One", "ip": 1.0}, {"mlbamid": 1, "playerName": "B Two", "ip": 2.0}])
+    b = T([{"playerid": 9, "xMLBAMID": 1, "PlayerName": "B Two", "Pos": "RP"}])
+    idx = players.PlayerIndex([("depth-charts", "athletics", "bp", a), ("depth-charts", "athletics", "dc", b)])
+    keys = set(idx.players["key"])
+    assert "mlbam:696286" in keys and "fg:9" in keys and len(keys) == 2   # B Two linked across both tables

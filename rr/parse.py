@@ -16,6 +16,10 @@ import re
 
 import pandas as pd
 
+# Bump whenever parsing changes. Published data from an older version is re-parsed
+# automatically (from the stored raw pages) the next time the website is built.
+PARSER_VERSION = 3
+
 NEXT_DATA_RE = re.compile(
     r"<script[^>]*\bid=[\"']__NEXT_DATA__[\"'][^>]*>(.*?)</script>", re.S | re.I
 )
@@ -85,9 +89,8 @@ def _clean_id(path: str, team_slug: str | None) -> str:
             if rest.startswith(noise):
                 rest = rest[len(noise):]
                 break
-        rest = rest.lstrip(".")
-        if rest.startswith("[*]."):
-            rest = rest[4:]
+        label = label.removeprefix("roster-resource/").removesuffix("/data")
+        rest = rest.replace("[*]", "").lstrip(".")
         path = f"{label} > {rest}" if rest else label
     if team_slug:
         path = re.sub(re.escape(team_slug), "{team}", path, flags=re.I)
@@ -140,21 +143,53 @@ def discover_tables(payload, team_slug: str | None = None) -> dict[str, pd.DataF
     """Map table-id -> DataFrame for every record list found in the payload."""
     found: list[tuple[str, list]] = []
 
-    def walk(node, path: str) -> None:
+    def merge_containers(items: list[dict], path: str, inherited: set) -> None:
+        """A list of blocks that each hold more data (one per game, contract, lineup...).
+        Rather than one table per block, make one table per kind of data inside, with each
+        block's own plain fields (game date, player...) carried onto every row."""
+        parents = [{k: v for k, v in d.items() if _is_scalar(v)} for d in items]
+        own = {k for p in parents for k in p} - inherited
+        if own and any(len(p) >= 2 for p in parents):
+            found.append((path, parents))
+        keys: list[str] = []
+        for d in items:
+            for k, v in d.items():
+                if k not in keys and not _is_scalar(v):
+                    keys.append(k)
+        for k in keys:
+            merged = []
+            for d, parent in zip(items, parents):
+                v = d.get(k)
+                for child in (v if isinstance(v, list) else [v] if isinstance(v, dict) else []):
+                    if isinstance(child, dict) and not _is_query_entry(child):
+                        row = dict(child)  # the row's own columns first, carried-down details after
+                        for pk, pv in parent.items():
+                            row.setdefault(pk if pk not in child else f"group.{pk}", pv)
+                        merged.append(row)
+            if merged:
+                walk(merged, f"{path}[*].{k}", inherited | set(parent_keys(merged, k, parents)))
+
+    def parent_keys(merged, k, parents):
+        return {pk for p in parents for pk in p} | {f"group.{pk}" for p in parents for pk in p}
+
+    def walk(node, path: str, inherited: set = frozenset()) -> None:
         if isinstance(node, list):
             if _is_record_list(node):
                 found.append((path, node))
                 found.extend(_child_tables(node, path))
                 return  # don't descend into rows
+            if node and all(isinstance(x, dict) for x in node) and not any(_is_query_entry(x) for x in node):
+                merge_containers(node, path, set(inherited))
+                return
             for i, item in enumerate(node):
                 walk(item, f"{path}[{i}]")
         elif isinstance(node, dict):
-            if "queryKey" in node and "state" in node:
+            if _is_query_entry(node):
                 path = "query:" + _query_label(node["queryKey"])
             for k, v in node.items():
                 if k == "queryKey":
                     continue
-                walk(v, f"{path}.{k}" if path else k)
+                walk(v, f"{path}.{k}" if path else k, inherited)
 
     walk(payload, "")
 

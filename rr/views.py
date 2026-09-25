@@ -60,30 +60,52 @@ class Ctx:
         return coverage(self.tables_for, page, self.avail.get(page, []))
 
 
-_TEAM_COLS = ["team", "teamname", "teamabbr", "teamabbrev", "abbname", "org", "organization", "club", "tm"]
+_TEAM_COLS = ["team", "teamabbname", "teamabbr", "teamabbrev", "abbname", "teamname", "org",
+              "organization", "club", "tm"]
+_TEAM_ID_COLS = ["teamid", "playerteamid"]
 
 
 def team_column(df: pd.DataFrame) -> str | None:
     """The column naming each row's team in a league-wide table, if there is one."""
+    col, _ = team_column_and_kind(df)
+    return col
+
+
+def team_column_and_kind(df: pd.DataFrame) -> tuple[str | None, bool]:
+    """-> (column, is_numeric_team_id). Named/abbreviated columns win over numeric ids."""
     import re
     by_norm = {re.sub(r"[^a-z0-9]", "", str(c).split(".")[-1].lower()): c for c in df.columns}
-    for n in _TEAM_COLS:
-        c = by_norm.get(n)
-        if c is not None:
-            hits = df[c].dropna().astype(str).head(200).map(config.team_slug_of)
+    for names, numeric in ((_TEAM_COLS, False), (_TEAM_ID_COLS, True)):
+        for n in names:
+            c = by_norm.get(n)
+            if c is None:
+                continue
+            vals = df[c].dropna().head(300)
+            hits = vals.map(lambda v: config.team_slug_of(v if numeric else str(v), numeric=numeric))
             if len(hits) and hits.notna().mean() >= 0.8:
-                return c
-    return None
+                return c, numeric
+    return None, False
+
+
+def team_slugs(df: pd.DataFrame) -> tuple[str | None, list]:
+    """-> (team column used, the team slug for every row)."""
+    col, numeric = team_column_and_kind(df)
+    if col is None:
+        return None, [None] * len(df)
+    return col, [config.team_slug_of(v if numeric else (v if isinstance(v, str) else str(v)), numeric=numeric)
+                 if v is not None else None for v in df[col]]
 
 
 def with_team(df: pd.DataFrame) -> pd.DataFrame:
     """Give a league-wide table a leading Team column (team names), like per-team tables have."""
-    col = team_column(df)
+    col, slugs = team_slugs(df)
     if col is None:
         return df
-    names = df[col].map(lambda v: config.SLUG_TO_TEAM.get(config.team_slug_of(v) or "", v))
-    out = df.drop(columns=[col])  # replaced by the normalized Team column
-    out.insert(0, "Team", names.values)
+    names = [config.SLUG_TO_TEAM.get(s or "", v) for s, v in zip(slugs, df[col])]
+    out = df.drop(columns=[col]) if col.lower() in ("team", "teamabbname", "tm") else df.copy()
+    if "Team" in out.columns:
+        out = out.drop(columns=["Team"])
+    out.insert(0, "Team", names)
     return out
 
 
