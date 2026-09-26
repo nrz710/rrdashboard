@@ -1,0 +1,593 @@
+{
+  "kind": "current",
+  "season": 2026,
+  "planned": 97,
+  "started_at": "2026-09-24T19:21:34+00:00",
+  "status": "complete",
+  "results": [
+    {
+      "page": "depth-charts",
+      "team": "athletics",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/athletics",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "orioles",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/orioles",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "red-sox",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/red-sox",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "white-sox",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/white-sox",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "guardians",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/guardians",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "tigers",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/tigers",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "astros",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/astros",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "royals",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/royals",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "angels",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/angels",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "twins",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/twins",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "yankees",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/yankees",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "mariners",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/mariners",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "rays",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/rays",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "rangers",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/rangers",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "blue-jays",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/blue-jays",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "diamondbacks",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/diamondbacks",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "braves",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/braves",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "cubs",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/cubs",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "reds",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/reds",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "rockies",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/rockies",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "dodgers",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/dodgers",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "marlins",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/marlins",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "brewers",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/brewers",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "mets",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/mets",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "phillies",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/phillies",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "pirates",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/pirates",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "padres",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/padres",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "giants",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/giants",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "cardinals",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/cardinals",
+      "ok": true
+    },
+    {
+      "page": "depth-charts",
+      "team": "nationals",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/nationals",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "athletics",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/athletics",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "orioles",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/orioles",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "red-sox",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/red-sox",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "white-sox",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/white-sox",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "guardians",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/guardians",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "tigers",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/tigers",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "astros",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/astros",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "royals",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/royals",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "angels",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/angels",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "twins",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/twins",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "yankees",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/yankees",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "mariners",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/mariners",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "rays",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/rays",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "rangers",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/rangers",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "blue-jays",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/blue-jays",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "diamondbacks",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/diamondbacks",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "braves",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/braves",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "cubs",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/cubs",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "reds",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/reds",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "rockies",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/rockies",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "dodgers",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/dodgers",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "marlins",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/marlins",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "brewers",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/brewers",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "mets",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/mets",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "phillies",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/phillies",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "pirates",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/pirates",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "padres",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/padres",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "giants",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/giants",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "cardinals",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/cardinals",
+      "ok": true
+    },
+    {
+      "page": "payroll",
+      "team": "nationals",
+      "url": "https://www.fangraphs.com/roster-resource/payroll/nationals",
+      "ok": true
+    },
+    {
+      "page": "transaction-tracker",
+      "team": null,
+      "url": "https://www.fangraphs.com/roster-resource/transaction-tracker",
+      "ok": true
+    },
+    {
+      "page": "injury-report",
+      "team": null,
+      "url": "https://www.fangraphs.com/roster-resource/injury-report",
+      "ok": true
+    },
+    {
+      "page": "closer-depth-chart",
+      "team": null,
+      "url": "https://www.fangraphs.com/roster-resource/closer-depth-chart",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "athletics",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/athletics",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "orioles",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/orioles",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "red-sox",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/red-sox",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "white-sox",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/white-sox",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "guardians",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/guardians",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "tigers",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/tigers",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "astros",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/astros",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "royals",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/royals",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "angels",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/angels",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "twins",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/twins",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "yankees",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/yankees",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "mariners",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/mariners",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "rays",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/rays",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "rangers",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/rangers",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "blue-jays",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/blue-jays",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "diamondbacks",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/diamondbacks",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "braves",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/braves",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "cubs",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/cubs",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "reds",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/reds",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "rockies",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/rockies",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "dodgers",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/dodgers",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "marlins",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/marlins",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "brewers",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/brewers",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "mets",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/mets",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "phillies",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/phillies",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "pirates",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/pirates",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "padres",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/padres",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "giants",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/giants",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "cardinals",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/cardinals",
+      "ok": true
+    },
+    {
+      "page": "lineup-tracker",
+      "team": "nationals",
+      "url": "https://www.fangraphs.com/roster-resource/lineup-tracker/nationals",
+      "ok": true
+    },
+    {
+      "page": "breakdowns/active-roster",
+      "team": null,
+      "url": "https://www.fangraphs.com/roster-resource/breakdowns/active-roster",
+      "ok": true
+    },
+    {
+      "page": "breakdowns/40-man-roster",
+      "team": null,
+      "url": "https://www.fangraphs.com/roster-resource/breakdowns/40-man-roster",
+      "ok": true
+    },
+    {
+      "page": "breakdowns/coaches",
+      "team": null,
+      "url": "https://www.fangraphs.com/roster-resource/breakdowns/coaches",
+      "ok": true
+    },
+    {
+      "page": "free-agent-tracker",
+      "team": null,
+      "url": "https://www.fangraphs.com/roster-resource/free-agent-tracker",
+      "ok": true
+    }
+  ],
+  "finished_at": "2026-09-24T19:33:28+00:00",
+  "ok": 97
+}

@@ -1,0 +1,18 @@
+{
+  "kind": "current",
+  "season": 2026,
+  "planned": 97,
+  "started_at": "2026-09-26T21:16:21+00:00",
+  "status": "blocked",
+  "results": [
+    {
+      "page": "depth-charts",
+      "team": "athletics",
+      "url": "https://www.fangraphs.com/roster-resource/depth-charts/athletics",
+      "ok": false,
+      "error": "https://www.fangraphs.com/roster-resource/depth-charts/athletics -> HTTP 403, looks like a Cloudflare challenge/block"
+    }
+  ],
+  "finished_at": "2026-09-26T21:16:21+00:00",
+  "ok": 0
+}
