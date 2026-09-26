@@ -130,7 +130,7 @@ SEASON_PARAM: dict[str, str] = {}
 # The table each tool opens on in the dashboard (matched against the end of the table name).
 PREFERRED_TABLES: dict[str, str] = {
     "depth-charts": "dataRoster",
-    "payroll": "dataContract.contractSummary",
+    "payroll": "payroll-grid",
     "lineup-tracker": "depthChartsData",
     "closer-depth-chart": "dataPlayers",
     "injury-report": "injury-report",

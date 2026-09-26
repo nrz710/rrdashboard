@@ -45,7 +45,7 @@ HEADER_LABELS = {
     "howacquired": "HOW ACQUIRED", "servicetime": "MLB SERVICE TIME", "options": "OPTIONS",
     "injury": "INJURY/SURGERY", "status": "STATUS", "role": "ROLE", "team": "TEAM",
     "transaction": "TRANSACTION/UPDATE", "date": "DATE", "contract": "CONTRACT",
-    "playernamedisplay": "PLAYER", "jnum": "#", "handed": "B/T", "acquired": "HOW ACQUIRED",
+    "playernamedisplay": "PLAYER NAME (DISPLAY)", "jnum": "#", "handed": "B/T", "acquired": "HOW ACQUIRED",
     "injurysurgery": "INJURY/SURGERY", "transdesc": "TRANSACTION", "transdate": "DATE",
     "transcategory": "CATEGORY", "latestupdate": "LATEST UPDATE", "returndate": "RETURN",
     "eligibledate": "ELIGIBLE", "gamedate": "DATE", "bo": "ORDER", "is40man": "40-MAN",
@@ -231,6 +231,21 @@ def css(scope: str = "") -> str:
 {s} .fg-brand-sub {{ font: 12px {t['font']}; color: {t['muted']}; }}
 {s} .fg-h1 {{ font: 700 22px {t['font']}; margin: 0 0 4px; color: {t['text']}; }}
 {s} .fg-page-note {{ font: 12px {t['font']}; color: {t['muted']}; margin-bottom: 8px; }}
+{s} .fg-table tbody tr td.pay-guaranteed {{ background: #ffffff !important; }}
+{s} .fg-table tbody tr td.pay-arb {{ background: #fff2cc !important; }}
+{s} .fg-table tbody tr td.pay-prearb {{ background: #d9ead3 !important; }}
+{s} .fg-table tbody tr td.pay-club {{ background: #cfe2f3 !important; }}
+{s} .fg-table tbody tr td.pay-player {{ background: #d9d2e9 !important; }}
+{s} .fg-table tbody tr td.pay-mutual {{ background: #fce5cd !important; }}
+{s} .fg-table tbody tr td.pay-vesting {{ background: #d0e0e3 !important; }}
+{s} .fg-table tbody tr td.pay-fa {{ background: #eeeeee !important; color: #666; font-weight: 700; text-align: center; }}
+{s} .fg-table tbody tr td.pay-minor {{ background: #f6f6f6 !important; color: #777; font-style: italic; }}
+{s} .fg-table td.pay-est {{ font-style: italic; }}
+{s} .fg-chip.pay-guaranteed {{ background: #ffffff; }} {s} .fg-chip.pay-arb {{ background: #fff2cc; }}
+{s} .fg-chip.pay-prearb {{ background: #d9ead3; }} {s} .fg-chip.pay-club {{ background: #cfe2f3; }}
+{s} .fg-chip.pay-player {{ background: #d9d2e9; }} {s} .fg-chip.pay-mutual {{ background: #fce5cd; }}
+{s} .fg-chip.pay-vesting {{ background: #d0e0e3; }} {s} .fg-chip.pay-fa {{ background: #eeeeee; }}
+{s} .fg-chip.pay-minor {{ background: #f6f6f6; font-style: italic; }} {s} .fg-chip.pay-est {{ font-style: italic; }}
 {s} .fg-player-name {{ font: 700 24px {t['font']}; margin: 4px 0 0; }}
 {s} .fg-player-meta {{ font: 13px {t['font']}; color: {t['muted']}; margin: 0 0 10px; }}
 {s} .fg-src {{ font: 11px {t['font']}; color: {t['muted']}; margin: 4px 0 14px; }}

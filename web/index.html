@@ -47,6 +47,8 @@
   .card > .fg-section { margin-top: 0; }
   .paneltools { display: flex; gap: 4px; }
   .paneltools button { padding: 3px 8px; }
+  .paneltools { align-items: center; flex-wrap: wrap; }
+  .moneyfmt { font-size: 12px; display: flex; gap: 6px; align-items: center; margin-right: 8px; }
   .fields { width: 100%; border-collapse: collapse; font-size: 12px; margin: 6px 0; }
   .fields th, .fields td { border: 1px solid var(--border); padding: 4px 6px; text-align: left; }
   .fields th { background: #e6e6e6; }
@@ -119,6 +121,8 @@ async function table(page, tid) {
       o._slug = t.tslug[i]; o._pkey = t.pkey[i]; o._cls = t.cls[i];
       if (t.fg_id_col) o._fgid = o[t.fg_id_col];
       if (t.url_col && typeof o[t.url_col] === "string" && o[t.url_col].startsWith("/")) o._url = "https://www.fangraphs.com" + o[t.url_col];
+      if (t.urls && typeof t.urls[i] === "string" && t.urls[i].startsWith("/")) o._url = "https://www.fangraphs.com" + t.urls[i];
+      if (t.cell_cls) { o._cc = {}; for (const c in t.cell_cls) o._cc[c] = t.cell_cls[c][i]; }
       return o;
     });
     t.page = page; t.tid = tid;
@@ -134,6 +138,10 @@ async function players() {
   }
   return D.players[D.sid];
 }
+function pickOrder(t, cols) {  // internal/technical columns last in the column menu
+  const noise = new Set(t.noise || []);
+  return cols.filter(c => !noise.has(c)).concat(cols.filter(c => noise.has(c)));
+}
 function defaultCols(t, all) {
   const d = (t.default_cols || []).filter(c => all.includes(c));
   return d.length ? d : all.slice(0, 10);
@@ -147,6 +155,7 @@ function coverage(m, page) {
   return m.tables.filter(t => t.page === page)
     .sort((a, b) => (isPref(a) - isPref(b)) || (a.same - b.same) || (b.teams - a.teams) || (b.rows - a.rows));
 }
+function titleOf(m, page, tid) { const t = m.byKey[page + "\u0000" + tid]; return t && t.title ? t.title : tid; }
 function pageLabel(k) { const p = D.index.pages.find(x => x.key === k); return p ? p.label : k; }
 function perTeam(m, page) { return (m.available[page] || []).some(t => t); }
 
@@ -165,16 +174,27 @@ function normName(s) {
   s = s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z\s'-]/g, " ").replace(/'/g, "").replace(/-/g, " ");
   return s.split(/\s+/).filter(p => p && !["jr", "sr", "ii", "iii", "iv", "v"].includes(p)).join(" ");
 }
-const MONEY = /salary|aav|payroll|luxury|cbt|guarantee/i;
+const MONEY = /salary|aav|payroll|luxury|cbt|guarante|bonus|buyout|earned|paymentamount|incentivevalue|arbitration|prearb|contracttotal|projection/i;
+// LONG: $1,000,000 (nearest dollar). SHORT: millions to three decimals, no leading zero: $1.000, $.750
+function money(v, mode) {
+  const neg = v < 0, a = Math.abs(v);
+  let s;
+  if (mode === "short") { s = (a / 1e6).toFixed(3); if (s.startsWith("0")) s = s.slice(1); s = "$" + s; }
+  else s = "$" + Math.round(a).toLocaleString("en-US");
+  return (neg ? "-" : "") + s;
+}
+function isMoney(view, col) { return view && view.money ? view.money.has(col) : MONEY.test(String(col)); }
 const isBlank = v => v === null || v === undefined || v === "" || (typeof v === "number" && isNaN(v));
-function fmt(v, col) {
+function fmt(v, col, view) {
   if (isBlank(v)) return ["", false];
   if (typeof v === "boolean") return [v ? "Y" : "N", false];
+  if (isMoney(view, col)) {
+    const n = toNum(v);
+    if (n !== null) return [money(n, view && view.moneyMode), true];
+  }
   if (typeof v === "number") {
-    const money = MONEY.test(String(col));
-    if (Number.isInteger(v)) return [money ? "$" + v.toLocaleString("en-US") : (Math.abs(v) >= 10000 ? v.toLocaleString("en-US") : String(v)), true];
-    return [money ? "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                  : v.toFixed(3).replace(/0+$/, "").replace(/\.$/, ""), true];
+    if (Number.isInteger(v)) return [Math.abs(v) >= 10000 ? v.toLocaleString("en-US") : String(v), true];
+    return [v.toFixed(3).replace(/0+$/, "").replace(/\.$/, ""), true];
   }
   return [esc(v), false];
 }
@@ -244,11 +264,15 @@ function tableHTML(view, maxRows = SHOW) {
   if (!rows || !rows.length) return `<div class="fg-empty">No rows.</div>`;
   const season = D.index.season;
   const seen = new Set();
-  const head = "<tr>" + cols.map(c => `<th title="${esc(c)}">${esc(labels[c] || headerLabel(c))}</th>`).join("") + "</tr>";
+  const tips = view.tips || {};
+  const head = "<tr>" + cols.map(c => `<th title="${esc(tips[c] || labels[c] || headerLabel(c))}">${esc(labels[c] || headerLabel(c))}</th>`).join("") + "</tr>";
+  const cellSeen = new Set();
   const body = rows.slice(0, maxRows).map(r => {
     if (r._cls) seen.add(r._cls);
     return `<tr class="${r._cls || ""}">` + cols.map(c => {
-      let [txt, num] = fmt(r[c], c);
+      let [txt, num] = fmt(r[c], c, view);
+      const cc = r._cc && r._cc[c] ? r._cc[c] : "";
+      if (cc) cc.split(" ").forEach(x => cellSeen.add(x));
       let tip = "";
       if (!num && typeof r[c] === "string" && r[c].length > 160) { tip = ` title="${esc(r[c].slice(0, 2000))}"`; txt = esc(r[c].slice(0, 160)) + "…"; }
       if (c === view.nameCol && txt && (r._url || (r._fgid !== undefined && !isBlank(r._fgid)))) {
@@ -256,7 +280,7 @@ function tableHTML(view, maxRows = SHOW) {
         txt = `<a href="${esc(href)}" target="_blank" rel="noopener">${txt}</a>`;
       }
       if (c === "Team" && NAME2SLUG[r[c]]) txt = `<span title="${esc(r[c])}">${TEAM[NAME2SLUG[r[c]]].abbr}</span>`;
-      return `<td class="${num ? "num" : ""}"${tip}>${txt}</td>`;
+      return `<td class="${num ? "num" : ""} ${cc}"${tip}>${txt}</td>`;
     }).join("") + "</tr>";
   }).join("");
   let legend = "";
@@ -265,6 +289,11 @@ function tableHTML(view, maxRows = SHOW) {
     if (seen.has("fg-acq")) chips.push(`<span class="fg-chip fg-acq">Acquired since end of ${season - 1} season</span>`);
     if (seen.has("fg-il")) chips.push(`<span class="fg-chip fg-il">Injured list</span>`);
     legend = `<div class="fg-legend"><b>Legend:</b>${chips.join("")}</div>`;
+  }
+  if (view.legend && cellSeen.size) {
+    const chips = Object.entries(view.legend).filter(([c]) => cellSeen.has(c))
+      .map(([c, label]) => `<span class="fg-chip ${c}">${esc(label)}</span>`);
+    legend += `<div class="fg-legend"><b>Contract status:</b>${chips.join("")}</div>`;
   }
   const more = rows.length > maxRows ? `<div class="fg-more">Showing ${maxRows.toLocaleString()} of ${rows.length.toLocaleString()} rows.
     <button data-more="1">Show ${Math.min(500, rows.length - maxRows).toLocaleString()} more</button> Downloads always include every row.</div>` : "";
@@ -276,10 +305,15 @@ function teamStripHTML(sel, id) {
       `<button data-strip="${id}" data-team="${t.slug}" class="${sel.includes(t.slug) ? "on" : ""}" title="${esc(t.name)}">${t.abbr}</button>`).join("") + "</div>";
   return row("AL") + row("NL") + `<div class="hint">${sel.length ? `${sel.length} team${sel.length > 1 ? "s" : ""} selected. <a href="#" data-clear="${id}">Show all teams</a>` : "No teams selected: showing all 30."}</div>`;
 }
-function colPickHTML(id, all, chosen, open) {
+function colPickHTML(id, all, chosen, open, labels) {
+  labels = labels || {};
+  const lab = c => labels[c] || headerLabel(c);
+  const count = {};
+  all.forEach(c => { count[lab(c)] = (count[lab(c)] || 0) + 1; });
+  const show = c => count[lab(c)] > 1 ? `${lab(c)} (${c})` : lab(c);
   return `<details class="colpick" id="${id}" ${open ? "open" : ""}><summary>${chosen.length} of ${all.length} columns ▾</summary><div class="box">
     <div style="display:flex;gap:6px;margin-bottom:6px"><button data-cols-all="${id}">All</button><button data-cols-none="${id}">None</button></div>
-    ${all.map(c => `<label><input type="checkbox" data-col="${id}" value="${esc(c)}" ${chosen.includes(c) ? "checked" : ""}> ${esc(headerLabel(c))} <span class="hint" style="margin:0">${esc(c)}</span></label>`).join("")}
+    ${all.map(c => `<label><input type="checkbox" data-col="${id}" value="${esc(c)}" ${chosen.includes(c) ? "checked" : ""}> ${esc(show(c))}</label>`).join("")}
   </div></details>`;
 }
 const opt = (v, label, cur) => `<option value="${esc(v)}" ${String(v) === String(cur) ? "selected" : ""}>${esc(label)}</option>`;
@@ -334,7 +368,7 @@ function agg(vals, how) {
 async function combine(spec) {
   const plist = await players();
   const pmap = new Map(plist.map(p => [p.key, p]));
-  const cols = [], values = new Map();
+  const cols = [], values = new Map(), moneyCols = new Set();
   let keep = null;
   for (let i = 0; i < spec.fields.length; i++) {
     const f = spec.fields[i];
@@ -342,6 +376,7 @@ async function combine(spec) {
     if (!t || !t.columns.includes(f.column)) continue;
     const label = f.label || `${f.column} (${pageLabel(f.page)})`;
     cols.push(label);
+    if ((t.money_cols || []).includes(f.column) && (f.agg || "first") !== "count") moneyCols.add(label);
     const groups = new Map();
     for (const o of t.objs) { if (!o._pkey) continue; if (!groups.has(o._pkey)) groups.set(o._pkey, []); groups.get(o._pkey).push(o[f.column]); }
     for (const [k, vs] of groups) { if (!values.has(k)) values.set(k, {}); values.get(k)[label] = agg(vs, f.agg || "first"); }
@@ -358,7 +393,7 @@ async function combine(spec) {
   if (teamNames.length) rows = rows.filter(r => teamNames.includes(r.Team));
   rows = sortRows(sortRows(rows, "Player"), "Team");
   if (spec.sort_by && spec.sort_by !== "Team") rows = sortRows(rows, spec.sort_by);
-  return { cols: ["Player", "Team", ...cols], rows };
+  return { cols: ["Player", "Team", ...cols], rows, money: moneyCols };
 }
 async function profile(key) {
   const m = await meta(D.sid);
@@ -396,15 +431,22 @@ async function panelView(p) {
     if (!t) return null;
     const slugs = (p.teams || []).filter(s => s && s !== "*");
     let rows = slugs.length ? t.objs.filter(o => slugs.includes(o._slug)) : t.objs;
-    if (kind === "summary") return { ...rollup(rows, p.by, p.value, p.how), labels: {} };
+    if (kind === "summary") {
+      const r = rollup(rows, p.by, p.value, p.how);
+      const m = new Set(p.how !== "count" && (t.money_cols || []).includes(p.value) ? [r.cols[1]] : []);
+      return { ...r, labels: {}, money: m, moneyMode: p.money || "long" };
+    }
     let cols = (p.columns || []).filter(c => t.columns.includes(c));
+    cols = t.columns.filter(c => cols.includes(c));  // page order...
+    if (t.name_col && cols.includes(t.name_col)) cols = [t.name_col, ...cols.filter(c => c !== t.name_col)];  // ...player first
     if (!cols.length) cols = defaultCols(t, dispCols(t).filter(c => c !== "Team"));
     if (t.has_team) cols = ["Team", ...cols.filter(c => c !== "Team")];
     rows = filterRows(rows, cols, p.filter);
     rows = sortRows(rows, p.sort_by, p.ascending !== false);
-    return { cols, rows, labels: t.labels, nameCol: t.name_col };
+    return { cols, rows, labels: t.labels, nameCol: t.name_col, money: new Set(t.money_cols || []),
+             tips: t.tips, legend: t.legend, moneyMode: p.money || "long" };
   }
-  if (kind === "combined") return await combine(p.spec);
+  if (kind === "combined") return { ...(await combine(p.spec)), moneyMode: p.money || "long" };
   if (kind === "player") {
     const rows = [];
     for (const s of await profile(p.player_key)) {
@@ -414,7 +456,7 @@ async function panelView(p) {
         rows.push({ Source: s.view.rows.length > 1 ? `${label} #${i + 1}` : label, Team: r.Team || "", Field: c, Value: String(r[c]) });
       }));
     }
-    return rows.length ? { cols: ["Source", "Team", "Field", "Value"], rows } : null;
+    return rows.length ? { cols: ["Source", "Team", "Field", "Value"], rows, money: new Set() } : null;
   }
   return null;
 }
@@ -463,11 +505,16 @@ async function render() {
   const main = document.getElementById("main");
   const focus = document.activeElement && document.activeElement.id ? { id: document.activeElement.id,
     pos: document.activeElement.selectionStart } : null;
+  const scrollY = window.scrollY;
+  const boxScroll = {};
+  document.querySelectorAll("details.colpick").forEach(d => { const b = d.querySelector(".box"); if (b) boxScroll[d.id] = b.scrollTop; });
   try {
     const html = await ({ league: viewLeague, player: viewPlayer, combine: viewCombine, custom: viewCustom,
                           board: viewBoard, export: viewExport })[UI.tab]();
     if (seq !== renderSeq) return;
     main.innerHTML = html;
+    window.scrollTo(0, scrollY);
+    for (const id in boxScroll) { const b = document.querySelector(`#${CSS.escape(id)} .box`); if (b) b.scrollTop = boxScroll[id]; }
   } catch (e) {
     console.error(e);
     if (seq === renderSeq) main.innerHTML = `<div class="err">Something went wrong loading this view. Try reloading the page.<br><small>${esc(e.message)}</small></div>`;
@@ -487,21 +534,21 @@ async function viewLeague() {
   const tid = cov.some(c => c.table === s.table[s.page]) ? s.table[s.page] : cov[0].table;
   s.table[s.page] = tid;
   const t = await table(s.page, tid);
-  const all = dispCols(t).filter(c => c !== "Team");
+  const all = pickOrder(t, dispCols(t).filter(c => c !== "Team"));
   const ck = s.page + "\u0000" + tid;
   if (!s.cols[ck]) s.cols[ck] = defaultCols(t, all);
   const cols = s.cols[ck].filter(c => all.includes(c));
   const pt = perTeam(m, s.page);
   const panel = { kind: "table", page: s.page, teams: s.teams.length ? [...s.teams] : ["*"], table: tid, columns: cols,
                   filter: s.filter, sort_by: s.sort, ascending: true,
-                  title: `${pageLabel(s.page)}: ${s.teams.length ? s.teams.map(x => TEAM[x].abbr).join(", ") : "All 30 teams"}` };
+                  title: `${titleOf(m, s.page, tid)}: ${s.teams.length ? s.teams.map(x => TEAM[x].abbr).join(", ") : "ALL 30 TEAMS"}` };
   const view = await panelView(panel);
   const sortOpts = (t.has_team ? ["Team"] : []).concat(cols);
   let roll = "";
   if (s.rollOpen) {
     const by = [...(t.has_team ? ["Team"] : []), ...all].includes(s.by) ? s.by : (t.has_team ? "Team" : all[0]);
     const summ = { kind: "summary", page: s.page, teams: panel.teams, table: tid, by, value: s.value || null, how: s.how,
-                   title: `${pageLabel(s.page)}: ${s.how} ${s.value && s.how !== "count" ? "of " + s.value + " " : ""}by ${by}` };
+                   title: `${titleOf(m, s.page, tid)}: ${s.how} ${s.value && s.how !== "count" ? "of " + headerLabel(s.value) + " " : ""}by ${headerLabel(by)}` };
     const ok = s.how === "count" || s.value;
     roll = `<div class="row">
         <label class="narrow">Show<select id="lg-how">${[["count", "Row counts"], ["sum", "Total"], ["mean", "Average"], ["max", "Highest"], ["min", "Lowest"]].map(([v, l]) => opt(v, l, s.how)).join("")}</select></label>
@@ -516,8 +563,8 @@ async function viewLeague() {
     ${teamStripHTML(s.teams, "lg")}
     ${!t.has_team ? `<div class="notice">This table has no team column the dashboard recognizes, so the team buttons can't filter it.</div>` : ""}
     <div class="row">
-      <label>Table<select id="lg-table">${cov.map(c => opt(c.table, `${c.table}  (${pt ? c.teams + " teams, " : "league-wide page, "}${c.rows} rows${c.same ? ", same on every page, probably site navigation" : ""})`, tid)).join("")}</select></label>
-      <label>Columns${colPickHTML("lg-cols", all, cols, s.colOpen)}</label>
+      <label>Table<select id="lg-table">${cov.map(c => opt(c.table, c.title || c.table, tid)).join("")}</select></label>
+      <label>Columns${colPickHTML("lg-cols", all, cols, s.colOpen, t.labels)}</label>
       <label>Keep rows containing<input type="search" id="lg-filter" value="${esc(s.filter)}"></label>
       <label class="narrow">Sort by<select id="lg-sort">${sortOpts.map(c => opt(c, headerLabel(c), s.sort)).join("")}</select></label>
     </div>
@@ -546,7 +593,8 @@ async function viewPlayer() {
   html += `<div class="player-name">${esc(p.Player)}</div><div class="player-meta">${esc(p.Team || "No team found")}${abbr}. Appears in ${prof.length} tool${prof.length === 1 ? "" : "s"}.</div>
     <div class="row"><button class="primary" id="pl-add">Add to dashboard</button></div>`;
   if (p.key.startsWith("name?:")) html += `<div class="notice">More than one player has this name, so these rows couldn't be matched to one of them.</div>`;
-  for (const sct of prof) html += sectionHTML(pageLabel(sct.page), sct.tid) + tableHTML(sct.view);
+  for (const sct of prof)
+    html += sectionHTML(titleOf(await meta(D.sid), sct.page, sct.tid), pageLabel(sct.page)) + tableHTML(sct.view);
   UI._pl = p;
   return html;
 }
@@ -564,12 +612,13 @@ async function viewCombine() {
   s.table[s.page] = tid;
   const info = m.byKey[s.page + "\u0000" + tid];
   const pickable = info.columns.filter(c => c !== info.name_col);
+  const pickLabels = (await table(s.page, tid)).labels;
   s.pick = s.pick.filter(c => pickable.includes(c));
   let html = `<div class="hint">Pick columns from any tools. Each player becomes one row, with the columns side by side.</div>
     <div class="row">
       <label>From<select id="cb-page">${pages.map(p => opt(p, pageLabel(p), s.page)).join("")}</select></label>
-      <label>Table<select id="cb-table">${tlist.map(x => opt(x, x, tid)).join("")}</select></label>
-      <label>Columns${colPickHTML("cb-cols", pickable, s.pick, s.colOpen)}</label>
+      <label>Table<select id="cb-table">${tlist.map(x => opt(x, titleOf(m, s.page, x), tid)).join("")}</select></label>
+      <label>Columns${colPickHTML("cb-cols", pickable, s.pick, s.colOpen, pickLabels)}</label>
       <label class="narrow">If several rows<select id="cb-how" title="first: first value. all: every distinct value, joined. count: number of rows. sum/mean/max/min: numeric.">${AGGS.map(a => opt(a, a, s.how)).join("")}</select></label>
       <button id="cb-addcols" ${s.pick.length ? "" : "disabled"}>Add columns</button>
     </div>`;
@@ -577,7 +626,7 @@ async function viewCombine() {
   html += `<table class="fields"><thead><tr><th>Column heading</th><th>If several rows</th><th>Tool</th><th>Source column</th><th></th></tr></thead><tbody>` +
     s.fields.map((f, i) => `<tr><td><input type="text" data-flabel="${i}" id="cb-lbl-${i}" value="${esc(f.label)}"></td>
       <td><select data-fagg="${i}">${AGGS.map(a => opt(a, a, f.agg)).join("")}</select></td>
-      <td>${esc(pageLabel(f.page))}</td><td>${esc(f.column)}</td><td><button data-fdel="${i}">Remove</button></td></tr>`).join("") + `</tbody></table>`;
+      <td>${esc(pageLabel(f.page))}: ${esc(titleOf(m, f.page, f.table))}</td><td>${esc(headerLabel(f.column))}</td><td><button data-fdel="${i}">Remove</button></td></tr>`).join("") + `</tbody></table>`;
   const firstOf = [];
   const seenSrc = new Set();
   s.fields.forEach((f, i) => { const k = f.page + "\u0000" + f.table; if (!seenSrc.has(k)) { seenSrc.add(k); firstOf.push(i); } });
@@ -598,7 +647,7 @@ async function viewCombine() {
     <details><summary class="hint" style="cursor:pointer">How players were matched</summary>
       <div class="hint">Rows are joined by player ID when a table has one, otherwise by name when exactly one player has that name. Ambiguous names are kept apart rather than guessed.</div>
       ${tableHTML({ cols: ["Page", "Table", "Rows", "By ID", "By name", "Name only", "Ambiguous", "Unmatched"],
-        rows: ptables.map(t => { const st = t.stats || {}; return { Page: pageLabel(t.page), Table: t.table,
+        rows: ptables.map(t => { const st = t.stats || {}; return { Page: pageLabel(t.page), Table: t.title || t.table,
           Rows: Object.values(st).reduce((a, b) => a + b, 0), "By ID": st.id || 0, "By name": st.name || 0,
           "Name only": st["name-only"] || 0, Ambiguous: st.ambiguous || 0, Unmatched: st.none || 0 }; }) })}
     </details>`;
@@ -617,12 +666,12 @@ async function viewCustom() {
   const tid = cov.some(c => c.table === s.table[s.page]) ? s.table[s.page] : cov[0].table;
   s.table[s.page] = tid;
   const t = await table(s.page, tid);
-  const all = dispCols(t).filter(c => c !== "Team");
+  const all = pickOrder(t, dispCols(t).filter(c => c !== "Team"));
   const ck = s.page + "\u0000" + tid;
   if (!s.cols[ck]) s.cols[ck] = defaultCols(t, all);
   const cols = s.cols[ck].filter(c => all.includes(c));
   const who = !pageInfo.team_tool ? "League-wide" : (s.teams.length ? s.teams.map(x => TEAM[x].abbr).join(", ") : "All teams");
-  const title = s.title || `${pageLabel(s.page)}: ${who}`;
+  const title = s.title || `${titleOf(m, s.page, tid)}: ${who}`;
   const panel = { kind: "table", page: s.page, teams: s.teams.length ? [...s.teams] : ["*"], table: tid, columns: cols,
                   filter: s.filter, sort_by: s.sort || null, ascending: s.asc, title };
   UI._cuPanel = panel;
@@ -630,8 +679,8 @@ async function viewCustom() {
   return `<div class="lbl">Page</div><div class="pills">${pages.map(p => `<button data-cupage="${p}" class="${p === s.page ? "on" : ""}">${esc(pageLabel(p))}</button>`).join("")}</div>
     ${pageInfo.team_tool && t.has_team ? teamStripHTML(s.teams, "cu") : ""}
     <div class="row">
-      <label>Table<select id="cu-table">${cov.map(c => opt(c.table, `${c.table}  (${c.rows} rows)`, tid)).join("")}</select></label>
-      <label>Columns (order follows the page)${colPickHTML("cu-cols", all, cols, s.colOpen)}</label>
+      <label>Table<select id="cu-table">${cov.map(c => opt(c.table, c.title || c.table, tid)).join("")}</select></label>
+      <label>Columns (order follows the page)${colPickHTML("cu-cols", all, cols, s.colOpen, t.labels)}</label>
     </div>
     <div class="row">
       <label>Keep rows containing<input type="search" id="cu-filter" value="${esc(s.filter)}"></label>
@@ -653,8 +702,10 @@ async function viewBoard() {
     const p = PANELS[i];
     let v = null;
     try { v = await panelView(p); } catch (e) { console.error(e); }
+    const moneySel = v && v.money && v.money.size
+      ? `<label class="moneyfmt">Money <select data-moneyfmt="${i}">${opt("long", "LONG ($1,000,000)", p.money || "long")}${opt("short", "SHORT ($1.000)", p.money || "long")}</select></label>` : "";
     html += `<div class="card">${sectionHTML(p.title, `${describe(p)}. ${v ? v.rows.length.toLocaleString() : 0} rows`)}
-      <div class="paneltools"><button data-up="${i}" ${i === 0 ? "disabled" : ""} title="Move up">↑</button>
+      <div class="paneltools">${moneySel}<button data-up="${i}" ${i === 0 ? "disabled" : ""} title="Move up">↑</button>
       <button data-down="${i}" ${i === PANELS.length - 1 ? "disabled" : ""} title="Move down">↓</button>
       <button data-csv="${i}">CSV</button><button data-del="${i}" title="Remove">Remove</button></div>
       ${v ? tableHTML(v) : `<div class="notice">Not available in the selected snapshot.</div>`}
@@ -680,7 +731,9 @@ async function exportItems() {
 }
 function csvOf(v) {
   const q = x => { x = isBlank(x) ? "" : String(x); return /[",\n]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x; };
-  return [v.cols.map(q).join(","), ...v.rows.map(r => v.cols.map(c => q(r[c])).join(","))].join("\n");
+  const val = (r, c) => isMoney(v, c) && toNum(r[c]) !== null ? money(toNum(r[c]), v.moneyMode) : r[c];
+  return [v.cols.map(c => (v.labels || {})[c] || headerLabel(c)).map(q).join(","),
+          ...v.rows.map(r => v.cols.map(c => q(val(r, c))).join(","))].join("\n");
 }
 const slug = s => String(s).replace(/[^A-Za-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 60) || "table";
 let xlsxLoading = null;
@@ -707,9 +760,13 @@ async function exportXLSX(items, title, fname) {
     while (used.has(name.toLowerCase())) { const suf = ` (${n++})`; name = base.slice(0, 31 - suf.length) + suf; }
     used.add(name.toLowerCase());
     const labels = v.labels || {};
-    const cell = x => isBlank(x) ? "" : (typeof x === "string" && x.length > 32000 ? x.slice(0, 32000) + "…" : x);
-    const aoa = [v.cols.map(c => labels[c] || headerLabel(c)), ...v.rows.map(r => v.cols.map(c => cell(r[c])))];
+    const cell = (x, c) => { if (isBlank(x)) return ""; if (isMoney(v, c) && toNum(x) !== null) return Math.round(toNum(x));
+                             return typeof x === "string" && x.length > 32000 ? x.slice(0, 32000) + "…" : x; };
+    const aoa = [v.cols.map(c => labels[c] || headerLabel(c)), ...v.rows.map(r => v.cols.map(c => cell(r[c], c)))];
     const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const zfmt = v.moneyMode === "short" ? '"$"#.000,,' : '"$"#,##0';
+    v.cols.forEach((c, j) => { if (!isMoney(v, c)) return;
+      for (let i = 1; i < aoa.length; i++) { const ref = XLSX.utils.encode_cell({ r: i, c: j }); if (ws[ref] && ws[ref].t === "n") ws[ref].z = zfmt; } });
     ws["!cols"] = v.cols.map((c, j) => ({ wch: Math.min(50, Math.max(...aoa.slice(0, 200).map(row => String(row[j] ?? "").length)) + 2) }));
     ws["!freeze"] = { xSplit: 0, ySplit: 1 };
     XLSX.utils.book_append_sheet(wb, ws, name);
@@ -783,7 +840,7 @@ document.addEventListener("click", async e => {
         const items = [];
         for (const c of coverage(m, UI.lg.page).filter(c => !c.same)) {
           const t = await table(UI.lg.page, c.table);
-          items.push([c.table.replace(/^query:/, "").replace(/\.state\.data/, ""), { cols: dispCols(t), rows: t.objs, labels: t.labels }]);
+          items.push([c.title || c.table, { cols: dispCols(t), rows: t.objs, labels: t.labels, money: new Set(t.money_cols || []) }]);
         }
         await exportXLSX(items, `${pageLabel(UI.lg.page)}, all teams`, `${UI.lg.page.replace(/\//g, "-")}_all_teams.xlsx`);
       } catch (err) { downloadFailed(err); }
@@ -792,7 +849,7 @@ document.addEventListener("click", async e => {
     case "pl-add": { const p = UI._pl; return addPanel({ kind: "player", player_key: p.key, player_name: p.Player, title: `Player card: ${p.Player}` }); }
     case "cb-addcols": {
       const s = UI.cb, tid = s.table[s.page];
-      for (const c of s.pick) s.fields.push({ page: s.page, table: tid, column: c, agg: s.how, label: `${c} (${pageLabel(s.page)})` });
+      for (const c of s.pick) s.fields.push({ page: s.page, table: tid, column: c, agg: s.how, label: headerLabel(c) });
       s.pick = []; s.colOpen = false; return render();
     }
     case "cb-add": return addPanel({ kind: "combined", title: UI.cb.title, spec: { ...UI._cbSpec } });
@@ -826,6 +883,7 @@ document.addEventListener("change", async e => {
     setCols(d.col, boxes.filter(x => x.checked).map(x => x.value)); return render();
   }
   if (d.fagg !== undefined) { UI.cb.fields[+d.fagg].agg = el.value; return render(); }
+  if (d.moneyfmt !== undefined) { PANELS[+d.moneyfmt].money = el.value; savePanels(); return render(); }
   if (d.flabel !== undefined) { UI.cb.fields[+d.flabel].label = el.value; return render(); }
   const set = {
     "snap": () => { D.sid = el.value; meta(D.sid).then(renderHead); },
