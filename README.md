@@ -103,7 +103,14 @@ by-hand command for past seasons and does nothing until `config.SEASON_PARAM` is
 - **Combine by Player**: columns from different tools, side by side, one row per player.
   Players are matched by FanGraphs/MLBAM ID first, then by name only when exactly one
   player has that name; shared names are flagged, never guessed.
-- **Custom Panel**, **Dashboard**, **Export**: build, arrange, and download.
+- **Payroll** opens on a RosterResource-style grid: this season plus the next six, each
+  salary colored by contract status (guaranteed, arbitration, pre-arb, club / player /
+  mutual option, vesting, free agent), with a payroll summary alongside.
+- **Yearly Payroll & Status**: a selection of its own in All Teams, Custom Panel and
+  Combine by Player. Its columns are the seven seasons (salary, colored by status) and
+  each season's status in words; choose as many or as few as you like.
+- **Custom Panel**, **Dashboard**, **Export**: build, arrange, and download. Dashboard
+  panels that show money offer LONG ($1,000,000) or SHORT ($1.000, $.750) formatting.
 
 ## Matching the RosterResource look
 

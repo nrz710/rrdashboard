@@ -199,6 +199,10 @@ def _derived_payload(df: pd.DataFrame, columns: list[str], money: list[str], cel
     }
 
 
+YEARLY_PAGE = "yearly-payroll"   # a selection of its own in the dashboard (built here, never fetched)
+YEARLY_LABEL = "Yearly Payroll & Status"
+
+
 def _payroll_tables(src, sid: str, meta: dict, season: int, log) -> list[tuple[dict, dict]]:
     """RosterResource-style PAYROLL grid and PAYROLL SUMMARY, from the payroll pages' data."""
     from . import payroll
@@ -219,6 +223,16 @@ def _payroll_tables(src, sid: str, meta: dict, season: int, log) -> list[tuple[d
         payload["tips"] = {"Age": f"Season age: age on June 30, {season}."}
         out.append(({"table": "payroll-grid", "title": "PAYROLL", "rows": len(grid)}, payload))
         log(f"Payroll grid: {len(grid)} players, {years[0]}-{years[-1]}.")
+        # Its own selection: YEARLY PAYROLL & STATUS (one table, a salary and a status column per season)
+        yt, ycells, ycols = payroll.yearly(grid, cells, years)
+        ypay = _derived_payload(yt, ycols, years, ycells, "Player", years)
+        ypay["labels"] = {c: c.upper() for c in ycols}
+        ypay["legend"] = payroll.LEGEND
+        ypay["always_cols"] = ["Player"]
+        ypay["tips"] = {**{y: f"{y} salary, colored by contract status" for y in years},
+                        **{f"{y} Status": f"{y} contract status" for y in years}}
+        out.append(({"table": "yearly-payroll", "title": "YEARLY PAYROLL & STATUS", "rows": len(yt),
+                     "page": YEARLY_PAGE, "player": True}, ypay))
     if overall is not None and "Season" in overall.columns:
         summ, years = payroll.summary(overall, season)
         out.append(({"table": "payroll-summary", "title": "PAYROLL SUMMARY", "rows": len(summ)},
@@ -274,6 +288,8 @@ def build(data_dir: Path, out_dir: Path, *, log=print) -> dict:
                            "same": False, "player": False, "stats": {}, "per_team": True, "has_team": True,
                            "name_col": payload["name_col"], "money_cols": payload["money_cols"],
                            "columns": payload["columns"], **info})
+        if any(t["page"] == YEARLY_PAGE for t in tables):
+            avail = {**avail, YEARLY_PAGE: avail.get("payroll", [])}
         seen: dict = {}
         for t in tables:  # titles must be unique within a page
             key = (t["page"], t["title"])
@@ -297,7 +313,8 @@ def build(data_dir: Path, out_dir: Path, *, log=print) -> dict:
         "snapshots": [{"id": s["id"], "manifest": s["manifest"]} for s in snaps],
         "status": _status(data_dir), "season": season,
         "teams": teams,
-        "pages": [{"key": k, "label": v, "team_tool": k in config.TEAM_TOOLS} for k, v in config.PAGE_LABELS.items()],
+        "pages": [{"key": k, "label": v, "team_tool": k in config.TEAM_TOOLS} for k, v in config.PAGE_LABELS.items()]
+                 + [{"key": YEARLY_PAGE, "label": YEARLY_LABEL, "team_tool": True, "built": True}],
         "header_labels": fgstyle.HEADER_LABELS,
         "preferred": config.PREFERRED_TABLES,
         "attribution": "Source: FanGraphs RosterResource (fangraphs.com)",

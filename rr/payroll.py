@@ -176,3 +176,24 @@ def summary(overall: pd.DataFrame, season: int) -> tuple[pd.DataFrame, list]:
             if any(row[y] is not None for y in years):
                 out.append(row)
     return pd.DataFrame(out, columns=["Item", *years, "_slug"]), years
+
+
+def status_label(cls: str) -> str:
+    """'pay-arb pay-est' -> 'Arbitration (est.)'."""
+    parts = (cls or "").split()
+    if not parts:
+        return ""
+    base = LEGEND.get(parts[0], "")
+    return f"{base} (est.)" if "pay-est" in parts[1:] and base else base
+
+
+def yearly(grid: pd.DataFrame, cells: dict, years: list[str]) -> tuple[pd.DataFrame, dict, list[str]]:
+    """YEARLY PAYROLL & STATUS: Player, then for each season its salary and its status in words.
+    -> (table, {salary column: [css class per row]}, column order)."""
+    out = grid[["Player", "_slug", "_pkey", "_url"]].copy()
+    cols = ["Player"]
+    for y in years:
+        out[y] = grid[y]
+        out[f"{y} Status"] = [status_label(c) for c in cells[y]]
+        cols += [y, f"{y} Status"]
+    return out, {y: cells[y] for y in years}, cols

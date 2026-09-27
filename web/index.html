@@ -146,6 +146,7 @@ function defaultCols(t, all) {
   const d = (t.default_cols || []).filter(c => all.includes(c));
   return d.length ? d : all.slice(0, 10);
 }
+function pickable(t) { const a = new Set(t.always_cols || []); return dispCols(t).filter(c => c !== "Team" && !a.has(c)); }
 function dispCols(t) {
   return (t.has_team ? ["Team"] : []).concat(t.columns.filter(c => !t.hidden.includes(c)));
 }
@@ -275,6 +276,10 @@ function tableHTML(view, maxRows = SHOW) {
       if (cc) cc.split(" ").forEach(x => cellSeen.add(x));
       let tip = "";
       if (!num && typeof r[c] === "string" && r[c].length > 160) { tip = ` title="${esc(r[c].slice(0, 2000))}"`; txt = esc(r[c].slice(0, 160)) + "…"; }
+      if (cc && view.legend && !tip) {  // hover shows the contract status in words
+        const parts = cc.split(" "), base = view.legend[parts[0]] || "";
+        if (base) tip = ` title="${esc(base + (parts.includes("pay-est") ? " (estimate)" : ""))}"`;
+      }
       if (c === view.nameCol && txt && (r._url || (r._fgid !== undefined && !isBlank(r._fgid)))) {
         const href = r._url || `https://www.fangraphs.com/statss.aspx?playerid=${encodeURIComponent(String(r._fgid).replace(/\.0$/, ""))}`;
         txt = `<a href="${esc(href)}" target="_blank" rel="noopener">${txt}</a>`;
@@ -368,7 +373,8 @@ function agg(vals, how) {
 async function combine(spec) {
   const plist = await players();
   const pmap = new Map(plist.map(p => [p.key, p]));
-  const cols = [], values = new Map(), moneyCols = new Set();
+  const cols = [], values = new Map(), moneyCols = new Set(), colors = new Map();
+  let legend = null;
   let keep = null;
   for (let i = 0; i < spec.fields.length; i++) {
     const f = spec.fields[i];
@@ -380,6 +386,14 @@ async function combine(spec) {
     const groups = new Map();
     for (const o of t.objs) { if (!o._pkey) continue; if (!groups.has(o._pkey)) groups.set(o._pkey, []); groups.get(o._pkey).push(o[f.column]); }
     for (const [k, vs] of groups) { if (!values.has(k)) values.set(k, {}); values.get(k)[label] = agg(vs, f.agg || "first"); }
+    if (t.cell_cls && t.cell_cls[f.column]) {
+      legend = { ...(legend || {}), ...(t.legend || {}) };
+      for (const o of t.objs) {
+        if (!o._pkey || !o._cc || !o._cc[f.column]) continue;
+        if (!colors.has(o._pkey)) colors.set(o._pkey, {});
+        if (!(label in colors.get(o._pkey))) colors.get(o._pkey)[label] = o._cc[f.column];
+      }
+    }
     if (spec.rows_from === i) keep = new Set(groups.keys());
   }
   let keys = [...values.keys()];
@@ -388,12 +402,12 @@ async function combine(spec) {
   const teamNames = (spec.teams || []).filter(t => t !== "*").map(s => TEAM[s] ? TEAM[s].name : s);
   let rows = keys.map(k => {
     const p = pmap.get(k) || { Player: k.split(":").slice(1).join(":"), Team: "" };
-    return { Player: p.Player, Team: p.Team || "", ...values.get(k), _pkey: k };
+    return { Player: p.Player, Team: p.Team || "", ...values.get(k), _pkey: k, _cc: colors.get(k) };
   });
   if (teamNames.length) rows = rows.filter(r => teamNames.includes(r.Team));
   rows = sortRows(sortRows(rows, "Player"), "Team");
   if (spec.sort_by && spec.sort_by !== "Team") rows = sortRows(rows, spec.sort_by);
-  return { cols: ["Player", "Team", ...cols], rows, money: moneyCols };
+  return { cols: ["Player", "Team", ...cols], rows, money: moneyCols, legend };
 }
 async function profile(key) {
   const m = await meta(D.sid);
@@ -438,6 +452,7 @@ async function panelView(p) {
     }
     let cols = (p.columns || []).filter(c => t.columns.includes(c));
     cols = t.columns.filter(c => cols.includes(c));  // page order...
+    for (const c of (t.always_cols || []).slice().reverse()) if (!cols.includes(c)) cols = [c, ...cols];  // e.g. the player's name
     if (t.name_col && cols.includes(t.name_col)) cols = [t.name_col, ...cols.filter(c => c !== t.name_col)];  // ...player first
     if (!cols.length) cols = defaultCols(t, dispCols(t).filter(c => c !== "Team"));
     if (t.has_team) cols = ["Team", ...cols.filter(c => c !== "Team")];
@@ -534,7 +549,7 @@ async function viewLeague() {
   const tid = cov.some(c => c.table === s.table[s.page]) ? s.table[s.page] : cov[0].table;
   s.table[s.page] = tid;
   const t = await table(s.page, tid);
-  const all = pickOrder(t, dispCols(t).filter(c => c !== "Team"));
+  const all = pickOrder(t, pickable(t));
   const ck = s.page + "\u0000" + tid;
   if (!s.cols[ck]) s.cols[ck] = defaultCols(t, all);
   const cols = s.cols[ck].filter(c => all.includes(c));
@@ -607,7 +622,7 @@ async function viewCombine() {
   if (!ptables.length) return `<div class="hint">No tables with player names or IDs were found in this snapshot.</div>`;
   const pages = D.index.pages.map(p => p.key).filter(k => ptables.some(t => t.page === k));
   if (!pages.includes(s.page)) s.page = pages[0];
-  const tlist = ptables.filter(t => t.page === s.page).map(t => t.table);
+  const tlist = coverage(m, s.page).filter(t => t.player).map(t => t.table);  // main table first
   const tid = tlist.includes(s.table[s.page]) ? s.table[s.page] : tlist[0];
   s.table[s.page] = tid;
   const info = m.byKey[s.page + "\u0000" + tid];
@@ -666,7 +681,7 @@ async function viewCustom() {
   const tid = cov.some(c => c.table === s.table[s.page]) ? s.table[s.page] : cov[0].table;
   s.table[s.page] = tid;
   const t = await table(s.page, tid);
-  const all = pickOrder(t, dispCols(t).filter(c => c !== "Team"));
+  const all = pickOrder(t, pickable(t));
   const ck = s.page + "\u0000" + tid;
   if (!s.cols[ck]) s.cols[ck] = defaultCols(t, all);
   const cols = s.cols[ck].filter(c => all.includes(c));

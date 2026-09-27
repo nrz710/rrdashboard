@@ -54,3 +54,34 @@ def test_clean_titles():
     assert table_title("depth-charts-all > dataRoster") == "ROSTER"
     assert table_title("lineup-tracker > lineupData.lineupTracker.dataPlayers") == "LINEUP TRACKER"
     assert table_title("something > dataFooBar.dataPlayers") == "FOO BAR: PLAYERS"
+
+
+def test_yearly_payroll_and_status_table():
+    cy = pd.DataFrame([
+        {"_slug": "cubs", "MLBAMID": 1, "Season": 2026, "Type": "GUARANTEED", "Salary": 35e6, "isEstimate": 0},
+        {"_slug": "cubs", "MLBAMID": 1, "Season": 2027, "Type": "CLUB OPTION", "Salary": 20e6, "isEstimate": 0},
+        {"_slug": "cubs", "MLBAMID": 2, "Season": 2026, "Type": "PRE-ARB", "Salary": 760000, "isEstimate": 0},
+        {"_slug": "cubs", "MLBAMID": 2, "Season": 2027, "Type": "ARB 1", "Salary": None, "ArbSalaryProjection": 2.1e6},
+    ])
+    summ = pd.DataFrame([{"_slug": "cubs", "MLBAMID": m, "playerName": n, "_pkey": f"mlbam:{m}"} for m, n in [(1, "A"), (2, "B")]])
+    grid, cells, years = payroll.build(cy, summ, None, 2026)
+    t, colors, cols = payroll.yearly(grid, cells, years)
+    assert cols[:5] == ["Player", "2026", "2026 Status", "2027", "2027 Status"] and len(cols) == 1 + 2 * 7
+    a = t[t["Player"] == "A"].iloc[0]
+    assert (a["2026"], a["2026 Status"], a["2027"], a["2027 Status"]) == (35000000, "Guaranteed", 20000000, "Club option")
+    b = t[t["Player"] == "B"].iloc[0]
+    assert b["2027 Status"] == "Arbitration (est.)" and b["_pkey"] == "mlbam:2"
+    assert set(colors) == set(years)
+
+
+def test_page_javascript_parses():
+    """Catches syntax errors in web/index.html (runs where Node.js is available, as on GitHub)."""
+    import shutil, subprocess, pathlib, pytest
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not installed")
+    html = (pathlib.Path(__file__).resolve().parent.parent / "web" / "index.html").read_text()
+    js = html.split("<script>", 1)[1].split("</script>", 1)[0]
+    r = subprocess.run([node, "-e", "new Function(require('fs').readFileSync(0, 'utf8'))"], input=js,
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
