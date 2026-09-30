@@ -28,7 +28,7 @@ def test_table_payloads(site):
     assert dc["per_team"] and dc["has_team"] and len(dc["rows"]) == 780
     assert set(dc["tslug"]) == set(t["slug"] for t in idx["teams"])
     assert "playerid" in dc["hidden"] and dc["name_col"] == "PlayerName" and dc["fg_id_col"] == "playerid"
-    assert "fg-acq" in dc["cls"] and all(len(r) == len(dc["columns"]) for r in dc["rows"])
+    assert "fg-acq" not in dc["cls"] and any(dc["acq"]) and all(len(r) == len(dc["columns"]) for r in dc["rows"])  # acquired shading is a toggle now
     assert sum(p is not None for p in dc["pkey"]) == 780
 
     inj = json.loads((site / "data" / sid / by[("injury-report", "injuryReport")]["file"]).read_text())

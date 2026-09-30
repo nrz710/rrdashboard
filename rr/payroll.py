@@ -264,3 +264,21 @@ def yearly(grid: pd.DataFrame, cells: dict, years: list[str]) -> tuple[pd.DataFr
         out[f"{y} Status"] = [status_label(c) for c in cells[y]]
         cols += [y, f"{y} Status"]
     return out, {y: cells[y] for y in years}, cols
+
+
+def free_agent_year(grid: pd.DataFrame, cells: dict, years: list[str]) -> dict:
+    """Per player (key): the first season he's a free agent (recorded or projected). If the
+    seven seasons show no free agency but do show a contract or team control, he's under
+    control beyond the window: returns last season + 1. Players whose future seasons are
+    all blank (nothing known) are left out."""
+    best: dict = {}
+    for i in range(len(grid)):
+        key = grid.iloc[i]["_pkey"]
+        if not isinstance(key, str):
+            continue
+        future = [(int(y), (cells[y][i] or "")) for y in years[1:]]
+        if not any(c for _, c in future):
+            continue  # nothing known about his future on this row
+        fa = next((y for y, c in future if c.split(" ")[0] == "pay-fa"), int(years[-1]) + 1)
+        best[key] = min(best.get(key, fa), fa)
+    return best

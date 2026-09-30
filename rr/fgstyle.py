@@ -36,6 +36,8 @@ TOKENS = {
     "row_alt": "#f7f7f7",
     "acquired_bg": "#ead8cd",    # "Acquired since end of last season" (tint of the accent)
     "il_bg": "#f6d3d3",          # injured list rows
+    "control_bg": "#dce7f3",     # "Under club control through ..." rows
+    "both_bg": "#e4dbe9",        # rows that match both highlights
     "font": 'Arial, "Helvetica Neue", Helvetica, sans-serif',
     "font_size": "12px",
 }
@@ -103,6 +105,23 @@ def row_class(row: pd.Series, cols_by_norm: dict[str, str], season: int) -> str:
         if c in cols_by_norm and _acquired_recently(row[cols_by_norm[c]], season):
             return "fg-acq"
     return ""
+
+
+_DRAFT_YEAR_RE = re.compile(r"'(\d{2})\s*$")
+
+
+def acquired_month(value) -> str | None:
+    """'Trade (STL) Aug'26' -> '2026-08'. Draft entries carry only a year ('Drafted 2nd Rd (56) '22');
+    the MLB draft is in July, so those read as July of that year."""
+    if not isinstance(value, str):
+        return None
+    m = _ACQ_RE.search(value)
+    if m and m.group(1).lower() in _MONTHS:
+        return f"20{int(m.group(2)):02d}-{_MONTHS[m.group(1).lower()]:02d}"
+    d = _DRAFT_YEAR_RE.search(value.strip())
+    if d and "draft" in value.lower():
+        return f"20{int(d.group(1)):02d}-07"
+    return None
 
 
 def legend_html(classes: set[str], season: int) -> str:
@@ -212,7 +231,12 @@ def css(scope: str = "") -> str:
 {s} .fg-table td.num {{ text-align: center; }}
 {s} .fg-table tbody tr:nth-child(even) td {{ background: {t['row_alt']}; }}
 {s} .fg-table tbody tr.fg-acq td {{ background: {t['acquired_bg']}; }}
+{s} .fg-table tbody tr.hl-acq td {{ background: {t['acquired_bg']}; }}
+{s} .fg-table tbody tr.hl-ctl td {{ background: {t['control_bg']}; }}
+{s} .fg-table tbody tr.hl-acq.hl-ctl td {{ background: {t['both_bg']}; }}
 {s} .fg-table tbody tr.fg-il td {{ background: {t['il_bg']}; }}
+{s} .fg-chip.hl-acq {{ background: {t['acquired_bg']}; }} {s} .fg-chip.hl-ctl {{ background: {t['control_bg']}; }}
+{s} .fg-chip.hl-both {{ background: {t['both_bg']}; }}
 {s} .fg-table tbody tr:hover td {{ background: {t['accent_tint']}; }}
 {s} .fg-table a {{ color: {t['link']}; text-decoration: none; font-weight: 700; }}
 {s} .fg-table a:hover {{ text-decoration: underline; }}

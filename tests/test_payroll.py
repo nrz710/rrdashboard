@@ -156,3 +156,28 @@ def test_traded_player_recorded_status_from_other_page_beats_projection():
     sd, mil = [list(grid["_slug"]).index(t) for t in ("padres", "brewers")]
     assert cells["2027"][sd] == "pay-mutual" and grid.iloc[sd]["2027"] == 10000000   # recorded, on his current team
     assert cells["2027"][mil] == ""
+
+
+def test_acquired_month_formats():
+    from rr.fgstyle import acquired_month
+    assert acquired_month("Trade (STL) Aug'26") == "2026-08"
+    assert acquired_month("Free Agent (NYY) Jan'26") == "2026-01"
+    assert acquired_month("Drafted 2nd Rd (56) '22") == "2022-07"   # the draft is in July
+    assert acquired_month("Non-Drafted FA Jul'20") == "2020-07"
+    assert acquired_month("n/a") is None and acquired_month(None) is None
+
+
+def test_first_free_agent_year_per_player():
+    cy = pd.DataFrame([
+        {"_slug": "cubs", "MLBAMID": 1, "Season": 2026, "Type": "GUARANTEED", "Salary": 1e6, "_pkey": "a"},
+        {"_slug": "cubs", "MLBAMID": 1, "Season": 2027, "Type": "FREE AGENT", "Salary": None, "_pkey": "a"},
+        {"_slug": "cubs", "MLBAMID": 2, "Season": 2026, "Type": "GUARANTEED", "Salary": 30e6, "_pkey": "b"},
+        {"_slug": "cubs", "MLBAMID": 2, **{"Season": 2027}, "Type": "GUARANTEED", "Salary": 30e6, "_pkey": "b"},
+        {"_slug": "cubs", "MLBAMID": 3, "Season": 2026, "Type": "PRE-ARB", "Salary": 780000, "_pkey": "c"},
+    ] + [{"_slug": "cubs", "MLBAMID": 2, "Season": y, "Type": "GUARANTEED", "Salary": 30e6, "_pkey": "b"} for y in range(2028, 2033)])
+    summ = pd.DataFrame([{"_slug": "cubs", "MLBAMID": 3, "playerName": "C", "servicetime": "1.000"}])
+    grid, cells, years = payroll.build(cy, summ, None, 2026)
+    fa = payroll.free_agent_year(grid, cells, years)
+    assert fa["a"] == 2027          # free agent in 2027 -> not under control through 2027
+    assert fa["b"] == 2033          # signed through 2032 -> under control beyond the window
+    assert fa["c"] == 2032          # pre-arb, 1 year of service after 2026: 6 years after 2031 -> FA in 2032

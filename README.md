@@ -115,6 +115,11 @@ by-hand command for past seasons and does nothing until `config.SEASON_PARAM` is
   Seasons the contract data leaves blank are projected from service time (6+ years =
   free agent, 3+ = arbitration, otherwise pre-arbitration) and shown in italics. A player
   on two payrolls after a trade counts once, on his current team's row.
+- **Highlight rows** (bar at the top; applies everywhere, remembered in the browser):
+  *Acquired since the end of the [year] season* (from "How acquired"; draft entries count
+  as July of the draft year) and *Under club control through [year]* (players whose first
+  free-agent season, recorded or projected, comes after that year; options count as not yet
+  free). Players with nothing known about their future contract aren't highlighted.
 - **Custom Panel**, **Dashboard**, **Export**: build, arrange, and download. Dashboard
   panels that show money offer LONG ($1,000,000) or SHORT ($1.000, $.750) formatting.
 

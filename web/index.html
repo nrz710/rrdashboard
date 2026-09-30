@@ -84,6 +84,12 @@
   .toast { position: fixed; bottom: 18px; right: 18px; background: #222; color: #fff; padding: 9px 14px; border-radius: 3px;
     font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
   .toast.show { opacity: .92; }
+  .hlbar { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; font-size: 12px;
+    border: 1px solid var(--border); padding: 6px 10px; background: #fff; }
+  .topbar label.hlopt { display: flex; flex-direction: row; gap: 5px; align-items: center; padding: 3px 8px;
+    border: 1px solid var(--border); font-size: 12px; color: #000; white-space: nowrap; }
+  .hlopt select { padding: 2px 4px; }
+  .hl-acq-chip { background: #ead8cd; } .hl-ctl-chip { background: #dce7f3; }
   footer.poweredby { max-width: 1400px; margin: 0 auto; padding: 10px 20px 24px; border-top: 1px solid #e3e3e3; font-size: 11px; color: #777; text-align: center; }
   .fg-wrap { max-height: 560px; }
   @media (max-width: 700px) { .wrap { padding: 10px; } .fg-h1 { font-size: 18px; } }
@@ -148,6 +154,7 @@ async function table(page, tid) {
       if (t.url_col && typeof o[t.url_col] === "string" && o[t.url_col].startsWith("/")) o._url = "https://www.fangraphs.com" + o[t.url_col];
       if (t.urls && typeof t.urls[i] === "string" && t.urls[i].startsWith("/")) o._url = "https://www.fangraphs.com" + t.urls[i];
       if (t.cell_cls) { o._cc = {}; for (const c in t.cell_cls) o._cc[c] = t.cell_cls[c][i]; }
+      if (t.acq) o._acq = t.acq[i];
       return o;
     });
     t.page = page; t.tid = tid;
@@ -321,8 +328,10 @@ function tableHTML(view, maxRows = SHOW) {
   const head = "<tr>" + cols.map(c => `<th title="${esc(tips[c] || labels[c] || headerLabel(c))}">${esc(labels[c] || headerLabel(c))}</th>`).join("") + "</tr>";
   const cellSeen = new Set();
   const body = rows.slice(0, maxRows).map(r => {
+    const hl = view.noHighlight ? [] : hlClasses(r);
     if (r._cls) seen.add(r._cls);
-    return `<tr class="${r._cls || ""}">` + cols.map(c => {
+    if (hl.length === 2) seen.add("hl-both"); else hl.forEach(x => seen.add(x));
+    return `<tr class="${[r._cls || "", ...hl].join(" ").trim()}">` + cols.map(c => {
       let [txt, num] = fmt(r[c], c, view);
       const cc = r._cc && r._cc[c] ? r._cc[c] : "";
       if (cc) cc.split(" ").forEach(x => cellSeen.add(x));
@@ -343,7 +352,11 @@ function tableHTML(view, maxRows = SHOW) {
   let legend = "";
   if (seen.size) {
     const chips = [];
+    const h = hlState();
     if (seen.has("fg-acq")) chips.push(`<span class="fg-chip fg-acq">Acquired since end of ${season - 1} season</span>`);
+    if (seen.has("hl-acq") || seen.has("hl-both")) chips.push(`<span class="fg-chip hl-acq">Acquired since end of ${h.acqYear} season</span>`);
+    if (seen.has("hl-ctl") || seen.has("hl-both")) chips.push(`<span class="fg-chip hl-ctl">Under club control through ${h.ctlYear}</span>`);
+    if (seen.has("hl-both")) chips.push(`<span class="fg-chip hl-both">Both</span>`);
     if (seen.has("fg-il")) chips.push(`<span class="fg-chip fg-il">Injured list</span>`);
     legend = `<div class="fg-legend"><b>Legend:</b>${chips.join("")}</div>`;
   }
@@ -375,6 +388,40 @@ function colPickHTML(id, all, chosen, open, labels) {
 }
 // ---- Columns box: tick columns to show them, in the order ticked; only these go to the dashboard
 const POWERED_BY = "Powered by FanGraphs";
+// ---- row highlights (toggles in the Highlights bar, remembered in this browser)
+const HL_KEY = "rr_highlights_v1";
+let HLS = null;
+function hlState() {
+  if (!HLS) {
+    const season = D.index.season;
+    HLS = { acq: true, acqYear: season - 1, ctl: false, ctlYear: season + 1 };
+    try { Object.assign(HLS, JSON.parse(localStorage.getItem(HL_KEY) || "{}")); } catch (e) { /* ignore */ }
+  }
+  return HLS;
+}
+function saveHL() { try { localStorage.setItem(HL_KEY, JSON.stringify(HLS)); } catch (e) { /* private mode */ } }
+function pinfo() { return (D.meta[D.sid] && D.meta[D.sid].pinfo) || {}; }
+// "acquired since the end of season Y": on or after November of Y. "under club control through Y":
+// his first free-agent season comes after Y.
+function hlClasses(r) {
+  const h = hlState(), info = (r._pkey && pinfo()[r._pkey]) || {};
+  const out = [];
+  const acq = info.acq || r._acq;
+  if (h.acq && acq && acq >= `${h.acqYear}-11`) out.push("hl-acq");
+  if (h.ctl && info.fa !== undefined && info.fa > h.ctlYear) out.push("hl-ctl");
+  return out;
+}
+function hlBarHTML() {
+  const h = hlState(), season = D.index.season;
+  const acqYears = Array.from({ length: 10 }, (_, i) => season - 1 - i);
+  const ctlYears = Array.from({ length: 7 }, (_, i) => season + i);
+  return `<div class="hlbar"><b>Highlight rows:</b>
+    <label class="hlopt hl-acq-chip"><input type="checkbox" id="hl-acq" ${h.acq ? "checked" : ""}> Acquired since the end of the
+      <select id="hl-acq-year">${acqYears.map(y => opt(y, y, h.acqYear)).join("")}</select> season</label>
+    <label class="hlopt hl-ctl-chip"><input type="checkbox" id="hl-ctl" ${h.ctl ? "checked" : ""}> Under club control through
+      <select id="hl-ctl-year">${ctlYears.map(y => opt(y, y, h.ctlYear)).join("")}</select></label>
+    <span class="hint" style="margin:0">Applies to every table, the dashboard and the printable report.</span></div>`;
+}
 const COLS = {};  // per box: { all, defaults } from the last draw, for the All / Defaults buttons
 const COL_CLOSED = {};  // per box: collapsed?
 function colBoxHTML(id, all, chosen, labels, noise, more, defaults, note) {
@@ -621,7 +668,8 @@ function renderHead() {
     `<label>Snapshot<select id="snap">${snaps.map(s => opt(s.id, snapLabel(s.manifest), D.sid)).join("")}</select></label>
      <button id="newer">Check for newer data</button>
      <div class="status">Last pull: ${esc(fmtTime(st.last_attempt))}. Pulls happen at most once every 48 hours.
-       ${st.halted ? `<div class="warn">Automatic refreshes are paused.</div>` : ""}${warn}</div>`;
+       ${st.halted ? `<div class="warn">Automatic refreshes are paused.</div>` : ""}${warn}</div>
+     ${hlBarHTML()}`;
 }
 
 let renderSeq = 0;
@@ -1078,6 +1126,14 @@ document.addEventListener("change", async e => {
   }
   if (d.moneyfmt !== undefined) { PANELS[+d.moneyfmt].money = el.value; savePanels(); return render(); }
   if (d.flabel !== undefined) { UI.cb.fields[+d.flabel].label = el.value; return render(); }
+  if (["hl-acq", "hl-ctl", "hl-acq-year", "hl-ctl-year"].includes(id)) {
+    const h = hlState();
+    if (id === "hl-acq") h.acq = el.checked;
+    if (id === "hl-ctl") h.ctl = el.checked;
+    if (id === "hl-acq-year") { h.acqYear = +el.value; h.acq = true; }
+    if (id === "hl-ctl-year") { h.ctlYear = +el.value; h.ctl = true; }
+    saveHL(); renderHead(); return render();
+  }
   const set = {
     "snap": () => { D.sid = el.value; meta(D.sid).then(renderHead); },
     "lg-table": () => { UI.lg.table[UI.lg.page] = el.value; UI.lg.colOpen = false; },

@@ -159,7 +159,9 @@ def _table_payload(df: pd.DataFrame, columns: list[str], per_team: bool, season:
         if pd.api.types.is_float_dtype(body[c]):
             body[c] = body[c].round(4)
     by_norm = {fgstyle.norm(c): c for c in body.columns}
-    cls = [fgstyle.row_class(row, by_norm, season) for _, row in body.iterrows()]
+    # injured-list shading stays fixed; "acquired since" is a toggle in the page, so it isn't baked in
+    cls = [c if c != "fg-acq" else "" for c in (fgstyle.row_class(row, by_norm, season) for _, row in body.iterrows())]
+    acq_col = by_norm.get("howacquired") or by_norm.get("acquired")
     name_col = next((by_norm[n] for n in fgstyle._NAME_COLS if n in by_norm), None)
     fg_id_col = next((by_norm[n] for n in _FG_ID if n in by_norm), None)
     url_col = by_norm.get("upurl")
@@ -182,6 +184,7 @@ def _table_payload(df: pd.DataFrame, columns: list[str], per_team: bool, season:
         "url_col": url_col, "per_team": per_team, "has_team": any(tslug),
         "rows": _json_values(body) if data_cols else [[] for _ in range(len(df))],
         "tslug": tslug, "pkey": [p if isinstance(p, str) else None for p in df["_pkey"]], "cls": cls,
+        "acq": [fgstyle.acquired_month(v) for v in body[acq_col]] if acq_col else None,
     }
 
 
@@ -199,6 +202,7 @@ def _derived_payload(df: pd.DataFrame, columns: list[str], money: list[str], cel
     }
 
 
+FA_YEARS: dict = {}  # player key -> first free-agent season, filled while building the payroll tables
 YEARLY_PAGE = "yearly-payroll"   # a selection of its own in the dashboard (built here, never fetched)
 YEARLY_LABEL = "Yearly Payroll & Status"
 
@@ -222,6 +226,8 @@ def _payroll_tables(src, sid: str, meta: dict, season: int, log) -> list[tuple[d
         payload["legend"] = payroll.LEGEND
         payload["tips"] = {"Age": f"Season age: age on June 30, {season}."}
         out.append(({"table": "payroll-grid", "title": "PAYROLL", "rows": len(grid)}, payload))
+        FA_YEARS.clear()
+        FA_YEARS.update(payroll.free_agent_year(grid, cells, years))
         log(f"Payroll grid: {len(grid)} players, {years[0]}-{years[-1]}.")
         # Its own selection: YEARLY PAYROLL & STATUS (one table, a salary and a status column per season)
         yt, ycells, ycols = payroll.yearly(grid, cells, years)
@@ -266,6 +272,7 @@ def build(data_dir: Path, out_dir: Path, *, log=print) -> dict:
     season = config.current_season()
     for snap in snaps:
         sid = snap["id"]
+        FA_YEARS.clear()
         meta = src.meta(sid)
         avail = src.available(sid)
         sdir = out_dir / "data" / sid
@@ -298,6 +305,21 @@ def build(data_dir: Path, out_dir: Path, *, log=print) -> dict:
             seen[key] = seen.get(key, 0) + 1
             if seen[key] > 1:
                 t["title"] = f"{t['title']} ({seen[key]})"
+        # per-player facts for the highlight toggles: when acquired, first free-agent season
+        pinfo: dict = {}
+        for t in meta["tables"]:
+            if not t["player"] or t["page"] not in ("depth-charts", "lineup-tracker"):
+                continue
+            df = src.table(sid, t["page"], t["table"])
+            col = next((c for c in df.columns if fgstyle.norm(c) in ("howacquired", "acquired")), None)
+            if col is None:
+                continue
+            for k, v in zip(df["_pkey"], df[col]):
+                when = fgstyle.acquired_month(v)
+                if isinstance(k, str) and when and "acq" not in pinfo.get(k, {}):
+                    pinfo.setdefault(k, {})["acq"] = when
+        for k, fa in FA_YEARS.items():
+            pinfo.setdefault(k, {})["fa"] = int(fa)
         idx = src.index(sid)
         p = idx.players
         _dump(sdir / "players.json", {"key": list(p["key"]), "name": [str(x) for x in p["Player"]],
@@ -305,6 +327,7 @@ def build(data_dir: Path, out_dir: Path, *, log=print) -> dict:
                                       "ambiguous": [bool(x) for x in p["Ambiguous"]]})
         _dump(sdir / "meta.json", {"id": sid, "manifest": meta["manifest"], "warnings": meta.get("warnings", []),
                                    "available": {k: [t or "" for t in v] for k, v in avail.items()},
+                                   "pinfo": pinfo,
                                    "tables": tables})
         log(f"Site: {sid} with {len(tables)} tables.")
 
