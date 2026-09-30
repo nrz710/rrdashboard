@@ -33,7 +33,34 @@ STATUS = [
     (r"^VESTING", "pay-vesting", "Vesting option"),
     (r"^GUARANTEED", "pay-guaranteed", "Guaranteed"),
 ]
-LEGEND = {cls: label for _, cls, label in STATUS} | {"pay-est": "Estimate"}
+LEGEND = {cls: label for _, cls, label in STATUS} | {"pay-est": "Estimate / projected"}
+
+SERVICE_DAYS = 172  # days in an MLB service year
+
+
+def service_years(v) -> float | None:
+    """'9.070' (9 years, 70 days) -> 9.407."""
+    if v is None:
+        return None
+    txt = str(v).strip()
+    if not re.fullmatch(r"\d+(\.\d{1,3})?", txt):
+        return None
+    years, _, days = txt.partition(".")
+    return int(years) + (int(days.ljust(3, "0")) if days else 0) / SERVICE_DAYS
+
+
+def projected_status(service_now: float | None, season: int, year: int) -> str | None:
+    """Status for a season the contract data leaves blank, from MLB's service-time rules:
+    6+ years of service -> free agent, 3+ -> arbitration, otherwise pre-arbitration.
+    service_now is the service time as of this (late) season, i.e. after the current season."""
+    if service_now is None:
+        return None
+    before = service_now + (year - 1 - season)  # service when that season's decisions are made
+    if before >= 6:
+        return "pay-fa"
+    if before >= 3:
+        return "pay-arb"
+    return "pay-prearb"
 
 
 def status_class(type_: str | None) -> str:
@@ -113,15 +140,29 @@ def build(contract_years: pd.DataFrame, summary: pd.DataFrame | None, roster: pd
             "Age": season_age(r.get("age"), r.get("loaddate"), season) if r is not None else None,
             "Contract": s.get("description") if s is not None else None,
             "_slug": slug,
-            "_pkey": s.get("_pkey") if s is not None and isinstance(s.get("_pkey"), str) else None,
+            "_pkey": (s.get("_pkey") if s is not None and isinstance(s.get("_pkey"), str)
+                      else next((k for k in g.get("_pkey", pd.Series(dtype=object)) if isinstance(k, str)), None)),
             "_url": s.get("UPURL") if s is not None else None,
+            "_mlbam": mlbam, "_on_roster": r is not None, "_last": int(g["Season"].max()),
         }
         classes = {}
         seen_fa = False
+        service = service_years(s.get("servicetime")) if s is not None else None
+        if service is None and r is not None:
+            service = service_years(r.get("servicetime"))
+        last_contract = max((int(x) for x, t in zip(g["Season"], g["Type"]) if status_class(t) != "pay-fa"), default=season)
         for y in years:
             yr = g[g["Season"] == int(y)]
             if yr.empty:
-                row[y], classes[y] = None, ""
+                # nothing on file for this season: project it from service time (marked as projected)
+                proj = projected_status(service, season, int(y)) if int(y) > last_contract and not seen_fa else None
+                if proj == "pay-fa":
+                    row[y], classes[y] = "FA", "pay-fa pay-est"
+                    seen_fa = True
+                elif proj in ("pay-arb", "pay-prearb"):
+                    row[y], classes[y] = ("ARB" if proj == "pay-arb" else "PRE-ARB"), proj + " pay-est"
+                else:
+                    row[y], classes[y] = None, ""
                 continue
             # prefer a year that has money over a free-agent placeholder
             yr = yr.assign(_has=yr["Salary"].map(_num).notna()).sort_values("_has", ascending=False)
@@ -135,12 +176,38 @@ def build(contract_years: pd.DataFrame, summary: pd.DataFrame | None, roster: pd
                 row[y], classes[y] = ("FA", cls) if not seen_fa else (None, "")
                 seen_fa = True
                 continue
-            if amount is None and cls in ("pay-arb", "pay-prearb"):
-                row[y] = re.sub(r"\s*\(.*$", "", str(top["Type"]).upper())  # e.g. "ARB 2", no amount yet
+            if amount is None and cls and cls != "pay-guaranteed":
+                row[y] = re.sub(r"\s*\(.*$", "", str(top["Type"]).upper())  # e.g. "ARB 2", "MUTUAL OPTION": no amount
             else:
                 row[y] = round(amount) if amount is not None else None
             classes[y] = (cls + (" pay-est" if est and amount is not None else "")).strip()
         rows.append((row, classes))
+
+    # A player who changed teams this season is on both payrolls (each lists its share of the money).
+    # Future seasons go on the row of the team he's with now, using a recorded status from either
+    # team's page before falling back to a projection.
+    by_player: dict = {}
+    for i, (row, _) in enumerate(rows):
+        by_player.setdefault(row["_mlbam"], []).append(i)
+    for idxs in by_player.values():
+        if len(idxs) < 2:
+            continue
+        def rank(i):
+            row = rows[i][0]
+            now = row[years[0]] if isinstance(row[years[0]], (int, float)) else 0
+            return (row["_on_roster"], row["_last"], now)
+        keep = max(idxs, key=rank)  # the team he's with now
+        for y in years[1:]:
+            # a recorded status wins over a projection, whichever team's page it's on
+            recorded = [i for i in idxs if rows[i][1][y] and "pay-est" not in rows[i][1][y].split()]
+            src = keep if keep in recorded else (recorded[0] if recorded else keep)  # his current team's record first
+            value, cls = rows[src][0][y], rows[src][1][y]
+            for i in idxs:
+                rows[i][0][y], rows[i][1][y] = None, ""
+            rows[keep][0][y], rows[keep][1][y] = value, cls
+    for row, _ in rows:
+        for k in ("_mlbam", "_on_roster", "_last"):
+            row.pop(k, None)
 
     rows.sort(key=lambda rc: (rc[0]["_slug"], -(rc[0][years[0]] if isinstance(rc[0][years[0]], (int, float)) else -1)))
     grid = pd.DataFrame([r for r, _ in rows], columns=["Player", "Pos", "Age", "Contract", *years, "_slug", "_pkey", "_url"])
@@ -184,7 +251,7 @@ def status_label(cls: str) -> str:
     if not parts:
         return ""
     base = LEGEND.get(parts[0], "")
-    return f"{base} (est.)" if "pay-est" in parts[1:] and base else base
+    return f"{base} (projected)" if "pay-est" in parts[1:] and base else base
 
 
 def yearly(grid: pd.DataFrame, cells: dict, years: list[str]) -> tuple[pd.DataFrame, dict, list[str]]:

@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>RosterResource dashboard</title>
+<title>VaynerResource</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚾</text></svg>">
 <link rel="stylesheet" href="fg.css?v=__BUILD__">
 <style>
-  :root { --green:#50ae26; --border:#c8c8c8; --muted:#666; --soft:#f1f1f1; }
+  :root { --accent:#8A5238; --ink:#000; --tint:#f4ebe6; --border:#c8c8c8; --muted:#666; --soft:#f1f1f1; }
   * { box-sizing: border-box; }
   body { margin: 0; font: 13px Arial, "Helvetica Neue", Helvetica, sans-serif; color: #000; background: #fff; }
   .wrap { max-width: 1400px; margin: 0 auto; padding: 16px 20px 60px; }
@@ -20,15 +20,15 @@
   button { font: 700 12px Arial, sans-serif; padding: 6px 12px; border: 1px solid var(--border); background: #f4f4f4;
     border-radius: 2px; cursor: pointer; color: #222; }
   button:hover { background: #e9e9e9; }
-  button.primary { background: var(--green); border-color: var(--green); color: #fff; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   button.primary:hover { filter: brightness(.95); }
   button:disabled { opacity: .5; cursor: default; }
-  .tabs { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 3px solid var(--green); margin: 8px 0 14px; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 3px solid var(--ink); margin: 8px 0 14px; }
   .tabs button { border-bottom: none; padding: 7px 14px; font-size: 13px; background: #eee; }
-  .tabs button.on { background: var(--green); border-color: var(--green); color: #fff; }
+  .tabs button.on { background: var(--ink); border-color: var(--ink); color: #fff; }
   .pills { display: flex; flex-wrap: wrap; gap: 2px; margin: 3px 0 8px; }
   .pills button { padding: 4px 9px; background: #f4f4f4; font-size: 12px; }
-  .pills button.on { background: var(--green); border-color: var(--green); color: #fff; }
+  .pills button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
   .lbl { font-size: 12px; color: #333; margin: 8px 0 2px; }
   .row { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; margin: 8px 0; }
   .row > label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: #333; min-width: 160px; flex: 1 1 180px; }
@@ -48,19 +48,43 @@
   .paneltools { display: flex; gap: 4px; }
   .paneltools button { padding: 3px 8px; }
   .paneltools { align-items: center; flex-wrap: wrap; }
+  .sfbox { border: 1px solid var(--border); background: #fafafa; padding: 8px 10px; margin: 6px 0 10px; }
+  .sfhead { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 12px; margin-bottom: 6px; }
+  .sfhead label { display: flex; gap: 6px; align-items: center; }
+  .sfhead button { padding: 3px 9px; }
+  .sfchips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .sfchips label { display: flex; gap: 5px; align-items: center; font-size: 12px; cursor: pointer; padding: 3px 8px; }
+  .sfchips label.sfon { outline: 2px solid #333; }
   .moneyfmt { font-size: 12px; display: flex; gap: 6px; align-items: center; margin-right: 8px; }
+  .colbox { border: 1px solid var(--border); background: #fff; padding: 8px 10px; margin: 6px 0 10px; }
+  .colhead { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12px; margin-bottom: 6px; }
+  .colhead button { padding: 3px 9px; }
+  .colsel { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 12px; padding: 6px 0; border-top: 1px solid #eee; border-bottom: 1px solid #eee; margin-bottom: 6px; }
+  .cchip { display: inline-flex; align-items: center; gap: 2px; background: var(--accent); color: #fff; font-weight: 700; padding: 2px 3px 2px 8px; border-radius: 2px; }
+  .cchip button { padding: 0 5px; background: transparent; border: none; color: #fff; font-size: 11px; }
+  .cchip button:hover { background: rgba(255,255,255,.25); }
+  .cchip button:disabled { opacity: .35; }
+  .colgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 2px 10px; max-height: 190px; overflow: auto; }
+  .colgrid label { display: flex; gap: 6px; align-items: center; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .colbox.closed .colsel { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+  button.coltoggle { background: none; border: none; padding: 2px 4px 2px 0; font-size: 13px; font-weight: 400; color: var(--ink); }
+  button.coltoggle:hover { background: var(--tint); }
+  .colgrid.more { border-top: 1px dashed #ddd; margin-top: 4px; padding-top: 4px; }
+  button.linkish { background: none; border: none; color: var(--accent); padding: 4px 0; font-weight: 400; text-decoration: underline; }
+  .fields td.ord { white-space: nowrap; width: 1%; }
   .fields { width: 100%; border-collapse: collapse; font-size: 12px; margin: 6px 0; }
   .fields th, .fields td { border: 1px solid var(--border); padding: 4px 6px; text-align: left; }
   .fields th { background: #e6e6e6; }
   .fields input, .fields select { width: 100%; }
   .results button { display: block; width: 100%; text-align: left; font-weight: 400; margin: 2px 0; background: #fff; }
-  .results button.on { border-color: var(--green); background: #eef6e9; }
+  .results button.on { border-color: var(--accent); background: var(--tint); }
   .player-name { font: 700 24px Arial, sans-serif; margin: 10px 0 0; }
   .player-meta { color: var(--muted); margin: 2px 0 12px; }
   .spinner { color: var(--muted); padding: 20px 0; }
   .toast { position: fixed; bottom: 18px; right: 18px; background: #222; color: #fff; padding: 9px 14px; border-radius: 3px;
     font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
   .toast.show { opacity: .92; }
+  footer.poweredby { max-width: 1400px; margin: 0 auto; padding: 10px 20px 24px; border-top: 1px solid #e3e3e3; font-size: 11px; color: #777; text-align: center; }
   .fg-wrap { max-height: 560px; }
   @media (max-width: 700px) { .wrap { padding: 10px; } .fg-h1 { font-size: 18px; } }
 </style>
@@ -72,6 +96,7 @@
   <nav class="tabs" id="tabs"></nav>
   <main id="main"><div class="spinner">Loading…</div></main>
 </div>
+<footer class="poweredby">Powered by FanGraphs</footer>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -146,7 +171,34 @@ function defaultCols(t, all) {
   const d = (t.default_cols || []).filter(c => all.includes(c));
   return d.length ? d : all.slice(0, 10);
 }
-function pickable(t) { const a = new Set(t.always_cols || []); return dispCols(t).filter(c => c !== "Team" && !a.has(c)); }
+// ---- contract-status filter: keep players whose cell in the chosen season has one of the ticked statuses
+const POTENTIAL_FA = ["pay-fa", "pay-player", "pay-club", "pay-mutual", "pay-vesting"];
+function applyStatus(rows, sf) {
+  if (!sf || !sf.year || !sf.statuses || !sf.statuses.length) return rows;
+  return rows.filter(r => r._cc && r._cc[sf.year] && sf.statuses.includes(r._cc[sf.year].split(" ")[0]));
+}
+function sfState(s, years) {  // per-tab filter state, kept valid for the table on screen
+  if (!s.sf) s.sf = { year: null, statuses: [] };
+  if (!years.includes(s.sf.year)) s.sf.year = years[1] || years[0] || null;
+  return s.sf.statuses.length ? { year: s.sf.year, statuses: [...s.sf.statuses] } : null;
+}
+function sfText(sf, legend) {
+  if (!sf || !sf.statuses || !sf.statuses.length) return "";
+  return `${sf.year}: ${sf.statuses.map(c => (legend || {})[c] || c).join(", ")}`;
+}
+function statusFilterHTML(tab, years, legend, sf) {
+  if (!years.length) return "";
+  const entries = Object.entries(legend || {}).filter(([c]) => c !== "pay-est");
+  const on = new Set(sf.statuses);
+  return `<div class="sfbox"><div class="sfhead"><b>Contract status filter</b>
+      <label>Season <select data-sfyear="${tab}">${years.map(y => opt(y, y, sf.year)).join("")}</select></label>
+      <button data-sfpreset="${tab}">Potential free agents</button>
+      ${on.size ? `<button data-sfclear="${tab}">Clear</button>` : `<span class="hint" style="margin:0">Tick statuses to show only those players.</span>`}</div>
+    <div class="sfchips">${entries.map(([c, label]) => `<label class="fg-chip ${c} ${on.has(c) ? "sfon" : ""}"><input type="checkbox" data-sfstat="${tab}" value="${c}" ${on.has(c) ? "checked" : ""}> ${esc(label)}</label>`).join("")}</div>
+  </div>`;
+}
+// the player's name (like TEAM) is always shown, so it isn't one of the columns to tick
+function pickable(t) { const a = new Set([...(t.always_cols || []), t.name_col].filter(Boolean)); return dispCols(t).filter(c => c !== "Team" && !a.has(c)); }
 function dispCols(t) {
   return (t.has_team ? ["Team"] : []).concat(t.columns.filter(c => !t.hidden.includes(c)));
 }
@@ -278,7 +330,7 @@ function tableHTML(view, maxRows = SHOW) {
       if (!num && typeof r[c] === "string" && r[c].length > 160) { tip = ` title="${esc(r[c].slice(0, 2000))}"`; txt = esc(r[c].slice(0, 160)) + "…"; }
       if (cc && view.legend && !tip) {  // hover shows the contract status in words
         const parts = cc.split(" "), base = view.legend[parts[0]] || "";
-        if (base) tip = ` title="${esc(base + (parts.includes("pay-est") ? " (estimate)" : ""))}"`;
+        if (base) tip = ` title="${esc(base + (parts.includes("pay-est") ? " (estimate / projected from service time)" : ""))}"`;
       }
       if (c === view.nameCol && txt && (r._url || (r._fgid !== undefined && !isBlank(r._fgid)))) {
         const href = r._url || `https://www.fangraphs.com/statss.aspx?playerid=${encodeURIComponent(String(r._fgid).replace(/\.0$/, ""))}`;
@@ -320,6 +372,44 @@ function colPickHTML(id, all, chosen, open, labels) {
     <div style="display:flex;gap:6px;margin-bottom:6px"><button data-cols-all="${id}">All</button><button data-cols-none="${id}">None</button></div>
     ${all.map(c => `<label><input type="checkbox" data-col="${id}" value="${esc(c)}" ${chosen.includes(c) ? "checked" : ""}> ${esc(show(c))}</label>`).join("")}
   </div></details>`;
+}
+// ---- Columns box: tick columns to show them, in the order ticked; only these go to the dashboard
+const POWERED_BY = "Powered by FanGraphs";
+const COLS = {};  // per box: { all, defaults } from the last draw, for the All / Defaults buttons
+const COL_CLOSED = {};  // per box: collapsed?
+function colBoxHTML(id, all, chosen, labels, noise, more, defaults, note) {
+  labels = labels || {};
+  const lab = c => labels[c] || headerLabel(c);
+  const count = {};
+  all.forEach(c => { count[lab(c)] = (count[lab(c)] || 0) + 1; });
+  const show = c => count[lab(c)] > 1 ? `${lab(c)} (${c})` : lab(c);
+  const noiseSet = new Set(noise || []);
+  const main = all.filter(c => !noiseSet.has(c)), extra = all.filter(c => noiseSet.has(c));
+  COLS[id] = { all: more ? all : main, defaults: defaults || [] };
+  const box = cols => cols.map(c => `<label title="${esc(c)}"><input type="checkbox" data-cbox="${id}" value="${esc(c)}" ${chosen.includes(c) ? "checked" : ""}> ${esc(show(c))}</label>`).join("");
+  const chips = chosen.map((c, i) => `<span class="cchip">${esc(show(c))}<button data-cmove="${id}" data-i="${i}" data-dir="-1" ${i === 0 ? "disabled" : ""} title="Move left">◀</button><button data-cmove="${id}" data-i="${i}" data-dir="1" ${i === chosen.length - 1 ? "disabled" : ""} title="Move right">▶</button><button data-cdel="${id}" data-i="${i}" title="Remove">✕</button></span>`).join("");
+  const closed = !!COL_CLOSED[id];  // collapsed: keep the header and the selected columns, hide the list
+  return `<div class="colbox ${closed ? "closed" : ""}"><div class="colhead">
+      <button class="coltoggle" data-ctoggle="${id}" aria-expanded="${!closed}" title="${closed ? "Show the column list" : "Hide the column list"}">${closed ? "▸" : "▾"} <b>Columns</b> (${chosen.length} selected)</button>
+      ${closed ? "" : `<span class="hint" style="margin:0">${esc(note || "Tick the columns you want. They're added in the order you tick them, and only these columns go to the dashboard.")}</span>
+      ${defaults ? `<button data-cdefault="${id}">Defaults</button>` : ""}<button data-call="${id}">All</button><button data-cnone="${id}">None</button>`}</div>
+    <div class="colsel"><b>Selected, in order:</b> ${chosen.length ? chips : `<i class="hint" style="margin:0">none yet</i>`}</div>
+    ${closed ? "" : `<div class="colgrid">${box(main)}</div>
+    ${extra.length ? `<button class="linkish" data-cmore="${id}">${more ? "Hide" : "Show"} ${extra.length} more (technical) columns</button>${more ? `<div class="colgrid more">${box(extra)}</div>` : ""}` : ""}`}
+  </div>`;
+}
+// the list behind each box: All Teams, Custom Panel, Combine's picks, or a dashboard panel ("b<n>")
+function colList(id) {
+  if (id === "lg" || id === "cu") { const s = UI[id], k = s.page + "\u0000" + s.table[s.page]; if (!s.cols[k]) s.cols[k] = []; return s.cols[k]; }
+  if (id === "cb") return UI.cb.pick;
+  const p = PANELS[+id.slice(1)];
+  if (p.kind === "combined") return p.spec.fields;
+  if (!Array.isArray(p.columns)) p.columns = [...(COLS[id] ? COLS[id].defaults : [])];
+  return p.columns;
+}
+function colCommit(id) { if (id[0] === "b") savePanels(); }
+function colReplace(id, list) {
+  const arr = colList(id); arr.splice(0, arr.length, ...list); colCommit(id);
 }
 const opt = (v, label, cur) => `<option value="${esc(v)}" ${String(v) === String(cur) ? "selected" : ""}>${esc(label)}</option>`;
 
@@ -383,15 +473,23 @@ async function combine(spec) {
     const label = f.label || `${f.column} (${pageLabel(f.page)})`;
     cols.push(label);
     if ((t.money_cols || []).includes(f.column) && (f.agg || "first") !== "count") moneyCols.add(label);
+    // One player can appear on several clubs' pages (e.g. two clubs still paying him after a trade).
+    // Use his current club's row first, so "first" values and status colors describe that club.
     const groups = new Map();
-    for (const o of t.objs) { if (!o._pkey) continue; if (!groups.has(o._pkey)) groups.set(o._pkey, []); groups.get(o._pkey).push(o[f.column]); }
-    for (const [k, vs] of groups) { if (!values.has(k)) values.set(k, {}); values.get(k)[label] = agg(vs, f.agg || "first"); }
-    if (t.cell_cls && t.cell_cls[f.column]) {
-      legend = { ...(legend || {}), ...(t.legend || {}) };
-      for (const o of t.objs) {
-        if (!o._pkey || !o._cc || !o._cc[f.column]) continue;
-        if (!colors.has(o._pkey)) colors.set(o._pkey, {});
-        if (!(label in colors.get(o._pkey))) colors.get(o._pkey)[label] = o._cc[f.column];
+    for (const o of t.objs) { if (!o._pkey) continue; if (!groups.has(o._pkey)) groups.set(o._pkey, []); groups.get(o._pkey).push(o); }
+    const current = (k, objs) => {
+      const team = (pmap.get(k) || {}).Team;
+      return team && t.has_team ? [...objs.filter(o => o.Team === team), ...objs.filter(o => o.Team !== team)] : objs;
+    };
+    const colored = t.cell_cls && t.cell_cls[f.column];
+    if (colored) legend = { ...(legend || {}), ...(t.legend || {}) };
+    for (const [k, objs] of groups) {
+      const ordered = current(k, objs);
+      if (!values.has(k)) values.set(k, {});
+      values.get(k)[label] = agg(ordered.map(o => o[f.column]), f.agg || "first");
+      if (colored) {
+        const hit = ordered.find(o => o._cc && o._cc[f.column]);
+        if (hit) { if (!colors.has(k)) colors.set(k, {}); colors.get(k)[label] = hit._cc[f.column]; }
       }
     }
     if (spec.rows_from === i) keep = new Set(groups.keys());
@@ -405,9 +503,11 @@ async function combine(spec) {
     return { Player: p.Player, Team: p.Team || "", ...values.get(k), _pkey: k, _cc: colors.get(k) };
   });
   if (teamNames.length) rows = rows.filter(r => teamNames.includes(r.Team));
+  const coloredCols = cols.filter(c => rows.some(r => r._cc && r._cc[c]));
+  rows = applyStatus(rows, spec.status_filter);
   rows = sortRows(sortRows(rows, "Player"), "Team");
   if (spec.sort_by && spec.sort_by !== "Team") rows = sortRows(rows, spec.sort_by);
-  return { cols: ["Player", "Team", ...cols], rows, money: moneyCols, legend };
+  return { cols: ["Player", "Team", ...cols], rows, money: moneyCols, legend, coloredCols };
 }
 async function profile(key) {
   const m = await meta(D.sid);
@@ -445,16 +545,17 @@ async function panelView(p) {
     if (!t) return null;
     const slugs = (p.teams || []).filter(s => s && s !== "*");
     let rows = slugs.length ? t.objs.filter(o => slugs.includes(o._slug)) : t.objs;
+    rows = applyStatus(rows, p.status_filter);
     if (kind === "summary") {
       const r = rollup(rows, p.by, p.value, p.how);
       const m = new Set(p.how !== "count" && (t.money_cols || []).includes(p.value) ? [r.cols[1]] : []);
       return { ...r, labels: {}, money: m, moneyMode: p.money || "long" };
     }
     let cols = (p.columns || []).filter(c => t.columns.includes(c));
-    cols = t.columns.filter(c => cols.includes(c));  // page order...
     for (const c of (t.always_cols || []).slice().reverse()) if (!cols.includes(c)) cols = [c, ...cols];  // e.g. the player's name
     if (t.name_col && cols.includes(t.name_col)) cols = [t.name_col, ...cols.filter(c => c !== t.name_col)];  // ...player first
-    if (!cols.length) cols = defaultCols(t, dispCols(t).filter(c => c !== "Team"));
+    if (!cols.length && !Array.isArray(p.columns)) cols = defaultCols(t, dispCols(t).filter(c => c !== "Team"));  // older panels
+    if (t.name_col && !cols.includes(t.name_col)) cols = [t.name_col, ...cols];  // who the row is about, always
     if (t.has_team) cols = ["Team", ...cols.filter(c => c !== "Team")];
     rows = filterRows(rows, cols, p.filter);
     rows = sortRows(rows, p.sort_by, p.ascending !== false);
@@ -476,6 +577,15 @@ async function panelView(p) {
   return null;
 }
 function describe(p) {
+  const k = p.kind || "table";
+  const f = p.status_filter || (p.spec && p.spec.status_filter);
+  const tail = f && f.statuses && f.statuses.length ? ` · ${f.year}: ${f.statuses.map(c => (STATUS_NAMES[c] || c)).join(", ")}` : "";
+  return describeBase(p) + tail;
+}
+const STATUS_NAMES = { "pay-fa": "Free agent", "pay-minor": "Not on 40-man", "pay-arb": "Arbitration", "pay-prearb": "Pre-arbitration",
+  "pay-club": "Club option", "pay-player": "Player option / opt-out", "pay-mutual": "Mutual option", "pay-vesting": "Vesting option",
+  "pay-guaranteed": "Guaranteed" };
+function describeBase(p) {
   const k = p.kind || "table";
   if (k === "combined") return "Combined by player from " + [...new Set(p.spec.fields.map(f => pageLabel(f.page)))].join(", ");
   if (k === "player") return "Every tool that mentions this player";
@@ -502,9 +612,9 @@ function renderHead() {
   const snaps = D.index.snapshots;
   const m = snaps.find(s => s.id === D.sid).manifest;
   document.getElementById("head").innerHTML =
-    `<div class="fg-brandbar"><span class="fg-logo">FanGraphs</span><span class="fg-brand-sub">RosterResource tools</span></div>
-     <h1 class="fg-h1">RosterResource dashboard</h1>
-     <div class="fg-page-note">Snapshot ${esc(snapLabel(m))}. ${esc(D.index.attribution)}.</div>`;
+    `<div class="fg-brandbar"><span class="fg-brand-sub">RosterResource tools</span></div>
+     <h1 class="fg-h1">VaynerResource</h1>
+     <div class="fg-page-note">Snapshot ${esc(snapLabel(m))}.</div>`;
   const st = D.index.status || {};
   const warn = (D.meta[D.sid] && D.meta[D.sid].warnings || []).map(w => `<div class="warn">Data check: ${esc(w)}</div>`).join("");
   document.getElementById("topbar").innerHTML =
@@ -554,15 +664,17 @@ async function viewLeague() {
   if (!s.cols[ck]) s.cols[ck] = defaultCols(t, all);
   const cols = s.cols[ck].filter(c => all.includes(c));
   const pt = perTeam(m, s.page);
+  const sfYears = Object.keys(t.cell_cls || {});
+  const sf = sfYears.length ? sfState(s, sfYears) : null;
   const panel = { kind: "table", page: s.page, teams: s.teams.length ? [...s.teams] : ["*"], table: tid, columns: cols,
-                  filter: s.filter, sort_by: s.sort, ascending: true,
+                  filter: s.filter, sort_by: s.sort, ascending: true, status_filter: sf,
                   title: `${titleOf(m, s.page, tid)}: ${s.teams.length ? s.teams.map(x => TEAM[x].abbr).join(", ") : "ALL 30 TEAMS"}` };
   const view = await panelView(panel);
   const sortOpts = (t.has_team ? ["Team"] : []).concat(cols);
   let roll = "";
   if (s.rollOpen) {
     const by = [...(t.has_team ? ["Team"] : []), ...all].includes(s.by) ? s.by : (t.has_team ? "Team" : all[0]);
-    const summ = { kind: "summary", page: s.page, teams: panel.teams, table: tid, by, value: s.value || null, how: s.how,
+    const summ = { kind: "summary", page: s.page, teams: panel.teams, table: tid, by, value: s.value || null, how: s.how, status_filter: sf,
                    title: `${titleOf(m, s.page, tid)}: ${s.how} ${s.value && s.how !== "count" ? "of " + headerLabel(s.value) + " " : ""}by ${headerLabel(by)}` };
     const ok = s.how === "count" || s.value;
     roll = `<div class="row">
@@ -576,14 +688,17 @@ async function viewLeague() {
   UI._lgPanel = panel;
   return `<div class="lbl">Page</div><div class="pills">${pages.map(p => `<button data-lgpage="${p}" class="${p === s.page ? "on" : ""}">${esc(pageLabel(p))}</button>`).join("")}</div>
     ${teamStripHTML(s.teams, "lg")}
+    ${sfYears.length ? statusFilterHTML("lg", sfYears, t.legend, s.sf) : ""}
     ${!t.has_team ? `<div class="notice">This table has no team column the dashboard recognizes, so the team buttons can't filter it.</div>` : ""}
     <div class="row">
       <label>Table<select id="lg-table">${cov.map(c => opt(c.table, c.title || c.table, tid)).join("")}</select></label>
-      <label>Columns${colPickHTML("lg-cols", all, cols, s.colOpen, t.labels)}</label>
+    </div>
+    ${colBoxHTML("lg", all, cols, t.labels, t.noise, s.more, defaultCols(t, all))}
+    <div class="row">
       <label>Keep rows containing<input type="search" id="lg-filter" value="${esc(s.filter)}"></label>
       <label class="narrow">Sort by<select id="lg-sort">${sortOpts.map(c => opt(c, headerLabel(c), s.sort)).join("")}</select></label>
     </div>
-    ${sectionHTML(panel.title, `${view.rows.length.toLocaleString()} rows`)}${tableHTML(view)}
+    ${sectionHTML(panel.title, [sfText(sf, t.legend), `${view.rows.length.toLocaleString()} rows`].filter(Boolean).join(" · "))}${tableHTML(view)}
     <div class="row"><button class="primary" id="lg-add">Add this table to the dashboard</button>
       <button id="lg-dl">Download every ${esc(pageLabel(s.page))} table, all teams (.xlsx)</button>
       <button id="lg-csv">Download this table (.csv)</button>
@@ -633,15 +748,17 @@ async function viewCombine() {
     <div class="row">
       <label>From<select id="cb-page">${pages.map(p => opt(p, pageLabel(p), s.page)).join("")}</select></label>
       <label>Table<select id="cb-table">${tlist.map(x => opt(x, titleOf(m, s.page, x), tid)).join("")}</select></label>
-      <label>Columns${colPickHTML("cb-cols", pickable, s.pick, s.colOpen, pickLabels)}</label>
       <label class="narrow">If several rows<select id="cb-how" title="first: first value. all: every distinct value, joined. count: number of rows. sum/mean/max/min: numeric.">${AGGS.map(a => opt(a, a, s.how)).join("")}</select></label>
-      <button id="cb-addcols" ${s.pick.length ? "" : "disabled"}>Add columns</button>
-    </div>`;
+    </div>
+    ${colBoxHTML("cb", pickable, s.pick, pickLabels, (await table(s.page, tid)).noise, s.more, null,
+                 "Tick the columns to take from this table, in the order you want them, then press Add columns.")}
+    <div class="row"><button class="primary" id="cb-addcols" ${s.pick.length ? "" : "disabled"}>Add ${s.pick.length || ""} column${s.pick.length === 1 ? "" : "s"} to the table below</button></div>`;
   if (!s.fields.length) return html + `<div class="hint">Add columns from two or more tools to build a combined player table.</div>`;
   html += `<table class="fields"><thead><tr><th>Column heading</th><th>If several rows</th><th>Tool</th><th>Source column</th><th></th></tr></thead><tbody>` +
     s.fields.map((f, i) => `<tr><td><input type="text" data-flabel="${i}" id="cb-lbl-${i}" value="${esc(f.label)}"></td>
       <td><select data-fagg="${i}">${AGGS.map(a => opt(a, a, f.agg)).join("")}</select></td>
-      <td>${esc(pageLabel(f.page))}: ${esc(titleOf(m, f.page, f.table))}</td><td>${esc(headerLabel(f.column))}</td><td><button data-fdel="${i}">Remove</button></td></tr>`).join("") + `</tbody></table>`;
+      <td>${esc(pageLabel(f.page))}: ${esc(titleOf(m, f.page, f.table))}</td><td>${esc(headerLabel(f.column))}</td>
+      <td class="ord"><button data-fmove="${i}" data-dir="-1" ${i === 0 ? "disabled" : ""} title="Move up">↑</button><button data-fmove="${i}" data-dir="1" ${i === s.fields.length - 1 ? "disabled" : ""} title="Move down">↓</button> <button data-fdel="${i}">Remove</button></td></tr>`).join("") + `</tbody></table>`;
   const firstOf = [];
   const seenSrc = new Set();
   s.fields.forEach((f, i) => { const k = f.page + "\u0000" + f.table; if (!seenSrc.has(k)) { seenSrc.add(k); firstOf.push(i); } });
@@ -649,15 +766,19 @@ async function viewCombine() {
   const labels = s.fields.map(f => f.label || f.column);
   const spec = { fields: s.fields.map(f => ({ ...f })), rows_from: s.rowsFrom === "any" ? "any" : Number(s.rowsFrom),
                  teams: s.teams.length ? [...s.teams] : ["*"], include_ambiguous: s.amb, sort_by: s.sort };
-  const res = await combine(spec);
+  const probe = await combine({ ...spec, status_filter: null });
+  const cbYears = probe.coloredCols || [];
+  spec.status_filter = cbYears.length ? sfState(s, cbYears) : null;
+  const res = spec.status_filter ? await combine(spec) : probe;
   UI._cbSpec = spec;
   html += `<div class="row">
       <label>Include players who appear in<select id="cb-rows">${opt("any", "Any of these tools", s.rowsFrom)}${firstOf.map(i => opt(i, `${pageLabel(s.fields[i].page)} (${s.fields[i].table})`, s.rowsFrom)).join("")}</select></label>
       <label class="narrow">Sort by<select id="cb-sort">${["Team", "Player", ...labels].map(c => opt(c, c, s.sort)).join("")}</select></label>
       <label class="narrow" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="cb-amb" ${s.amb ? "checked" : ""}> Include ambiguous names</label>
     </div>${teamStripHTML(s.teams, "cb")}
+    ${cbYears.length ? statusFilterHTML("cb", cbYears, res.legend || probe.legend, s.sf) : ""}
     <div class="row"><label>Panel title<input type="text" id="cb-title" value="${esc(s.title)}"></label></div>
-    ${sectionHTML(s.title, `${res.rows.length.toLocaleString()} players`)}${tableHTML(res)}
+    ${sectionHTML(s.title, [sfText(spec.status_filter, res.legend || probe.legend), `${res.rows.length.toLocaleString()} players`].filter(Boolean).join(" · "))}${tableHTML(res)}
     <div class="row"><button class="primary" id="cb-add">Add to the dashboard</button><button id="cb-clear">Clear columns</button></div>
     <details><summary class="hint" style="cursor:pointer">How players were matched</summary>
       <div class="hint">Rows are joined by player ID when a table has one, otherwise by name when exactly one player has that name. Ambiguous names are kept apart rather than guessed.</div>
@@ -687,16 +808,19 @@ async function viewCustom() {
   const cols = s.cols[ck].filter(c => all.includes(c));
   const who = !pageInfo.team_tool ? "League-wide" : (s.teams.length ? s.teams.map(x => TEAM[x].abbr).join(", ") : "All teams");
   const title = s.title || `${titleOf(m, s.page, tid)}: ${who}`;
+  const sfYears = Object.keys(t.cell_cls || {});
+  const sf = sfYears.length ? sfState(s, sfYears) : null;
   const panel = { kind: "table", page: s.page, teams: s.teams.length ? [...s.teams] : ["*"], table: tid, columns: cols,
-                  filter: s.filter, sort_by: s.sort || null, ascending: s.asc, title };
+                  filter: s.filter, sort_by: s.sort || null, ascending: s.asc, title, status_filter: sf };
   UI._cuPanel = panel;
   const view = await panelView(panel);
   return `<div class="lbl">Page</div><div class="pills">${pages.map(p => `<button data-cupage="${p}" class="${p === s.page ? "on" : ""}">${esc(pageLabel(p))}</button>`).join("")}</div>
     ${pageInfo.team_tool && t.has_team ? teamStripHTML(s.teams, "cu") : ""}
+    ${sfYears.length ? statusFilterHTML("cu", sfYears, t.legend, s.sf) : ""}
     <div class="row">
       <label>Table<select id="cu-table">${cov.map(c => opt(c.table, c.title || c.table, tid)).join("")}</select></label>
-      <label>Columns (order follows the page)${colPickHTML("cu-cols", all, cols, s.colOpen, t.labels)}</label>
     </div>
+    ${colBoxHTML("cu", all, cols, t.labels, t.noise, s.more, defaultCols(t, all))}
     <div class="row">
       <label>Keep rows containing<input type="search" id="cu-filter" value="${esc(s.filter)}"></label>
       <label class="narrow">Sort by<select id="cu-sort">${opt("", "(none)", s.sort)}${(t.has_team ? ["Team"] : []).concat(cols).map(c => opt(c, headerLabel(c), s.sort)).join("")}</select></label>
@@ -710,7 +834,7 @@ async function viewCustom() {
 // -------------------------------------------------------------- Dashboard ---
 async function viewBoard() {
   let html = `<div class="row"><button id="lay-save" ${PANELS.length ? "" : "disabled"}>Save layout (.json)</button>
-    <label class="narrow" style="flex-direction:row;align-items:center;gap:6px">Load a saved layout <input type="file" id="lay-load" accept=".json,application/json"></label></div>
+    <label style="flex-direction:row;align-items:center;gap:6px;flex:0 1 auto;white-space:nowrap">Load a saved layout <input type="file" id="lay-load" accept=".json,application/json"></label></div>
     <div class="hint">Your dashboard is kept in this browser. Save the layout to a file to reuse it elsewhere or hand it to someone else.</div>`;
   if (!PANELS.length) return html + `<div class="hint">The dashboard is empty. Add tables from the other tabs.</div>`;
   for (let i = 0; i < PANELS.length; i++) {
@@ -722,11 +846,29 @@ async function viewBoard() {
     html += `<div class="card">${sectionHTML(p.title, `${describe(p)}. ${v ? v.rows.length.toLocaleString() : 0} rows`)}
       <div class="paneltools">${moneySel}<button data-up="${i}" ${i === 0 ? "disabled" : ""} title="Move up">↑</button>
       <button data-down="${i}" ${i === PANELS.length - 1 ? "disabled" : ""} title="Move down">↓</button>
+      ${(p.kind || "table") === "table" || p.kind === "combined" ? `<button data-edit="${i}" class="${UI.edit === i ? "primary" : ""}">${UI.edit === i ? "Done" : "Edit columns"}</button>` : ""}
       <button data-csv="${i}">CSV</button><button data-del="${i}" title="Remove">Remove</button></div>
+      ${UI.edit === i ? await panelColEditor(p, i) : ""}
       ${v ? tableHTML(v) : `<div class="notice">Not available in the selected snapshot.</div>`}
-      <div class="fg-src">${esc(D.index.attribution)}.</div></div>`;
+</div>`;
   }
   return html;
+}
+
+async function panelColEditor(p, i) {
+  const id = "b" + i;
+  if (p.kind === "combined") {
+    const labels = p.spec.fields.map(f => f.label || f.column);
+    const chips = labels.map((c, j) => `<span class="cchip">${esc(c)}<button data-cmove="${id}" data-i="${j}" data-dir="-1" ${j === 0 ? "disabled" : ""}>◀</button><button data-cmove="${id}" data-i="${j}" data-dir="1" ${j === labels.length - 1 ? "disabled" : ""}>▶</button><button data-cdel="${id}" data-i="${j}">✕</button></span>`).join("");
+    return `<div class="colbox"><div class="colhead"><b>Columns</b><span class="hint" style="margin:0">Reorder or remove columns here. To add columns from other tools, build the table in Combine by Player.</span></div>
+      <div class="colsel"><b>In order:</b> ${chips || `<i class="hint" style="margin:0">none</i>`}</div></div>`;
+  }
+  const t = await table(p.page, p.table);
+  if (!t) return "";
+  const all = pickOrder(t, pickable(t));
+  const cols = (Array.isArray(p.columns) ? p.columns : defaultCols(t, all)).filter(c => all.includes(c));
+  return colBoxHTML(id, all, cols, t.labels, t.noise, UI.editMore, defaultCols(t, all),
+                    "Tick columns to add them to this panel, in the order you tick them. Changes save automatically.");
 }
 
 // ------------------------------------------------------------------ Export ---
@@ -767,7 +909,7 @@ async function exportXLSX(items, title, fname) {
   const wb = XLSX.utils.book_new();
   const m = D.index.snapshots.find(s => s.id === D.sid).manifest;
   const about = [["Field", "Value"], ["Report", title], ["Data snapshot", snapLabel(m)], ["Exported", new Date().toLocaleString()],
-                 ["Source", D.index.attribution], ...items.map(([t, v]) => [`Sheet: ${t}`, `${v.rows.length} rows`])];
+                 ...items.map(([t, v]) => [`Sheet: ${t}`, `${v.rows.length} rows`]), [], [POWERED_BY, ""]];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(about), "About");
   const used = new Set(["about"]);
   for (const [t, v] of items) {
@@ -792,15 +934,16 @@ async function exportHTML(items, title) {
   if (!D.css) D.css = await (await fetch("fg.css?v=" + encodeURIComponent(D.index.generated))).text();
   const m = D.index.snapshots.find(s => s.id === D.sid).manifest;
   const blocks = items.map(([t, v]) => `<div class="fg-block">${sectionHTML(t, v.rows.length + " rows")}${tableHTML(v, 1e9)}
-    <div class="fg-src">${esc(D.index.attribution)}. Snapshot ${esc(snapLabel(m))}.</div></div>`).join("\n");
+    <div class="fg-src">Snapshot ${esc(snapLabel(m))}.</div></div>`).join("\n");
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)}</title><style>${D.css}
 body{font-family:Arial,"Helvetica Neue",Helvetica,sans-serif;max-width:1200px;margin:24px auto;padding:0 16px;color:#000}
+.poweredby{margin:28px 0 8px;padding-top:8px;border-top:1px solid #ddd;font-size:11px;color:#777;text-align:center}
 .fg-wrap{max-height:none}.fg-table th{position:static}
 @media print{body{margin:0;max-width:none}.fg-block{break-inside:avoid-page}.fg-table th,.fg-section,.fg-table td{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-</style></head><body><div class="fg-brandbar"><span class="fg-logo">FanGraphs</span><span class="fg-brand-sub">RosterResource tools</span></div>
-<h1 class="fg-h1">${esc(title)}</h1><div class="fg-page-note">Data snapshot ${esc(snapLabel(m))}. Exported ${esc(new Date().toLocaleString())}. ${esc(D.index.attribution)}.</div>
-${blocks}</body></html>`;
+</style></head><body><div class="fg-brandbar"><span class="fg-brand-sub">RosterResource tools</span></div>
+<h1 class="fg-h1">${esc(title)}</h1><div class="fg-page-note">Data snapshot ${esc(snapLabel(m))}. Exported ${esc(new Date().toLocaleString())}.</div>
+${blocks}<div class="poweredby">${POWERED_BY}</div></body></html>`;
 }
 
 // ------------------------------------------------------------------ events ---
@@ -831,6 +974,29 @@ document.addEventListener("click", async e => {
     setCols(id, chosen); return render();
   }
   if (d.fdel !== undefined) { UI.cb.fields.splice(Number(d.fdel), 1); return render(); }
+  if (d.fmove !== undefined) {
+    const f = UI.cb.fields, i = +d.fmove, j = i + (+d.dir);
+    if (j >= 0 && j < f.length) [f[i], f[j]] = [f[j], f[i]];
+    return render();
+  }
+  if (d.cmove) {
+    const arr = colList(d.cmove), i = +d.i, j = i + (+d.dir);
+    if (j >= 0 && j < arr.length) { [arr[i], arr[j]] = [arr[j], arr[i]]; colCommit(d.cmove); }
+    return render();
+  }
+  if (d.cdel) { colList(d.cdel).splice(+d.i, 1); colCommit(d.cdel); return render(); }
+  if (d.ctoggle) { COL_CLOSED[d.ctoggle] = !COL_CLOSED[d.ctoggle]; return render(); }
+  if (d.cnone) { colReplace(d.cnone, []); return render(); }
+  if (d.call) { const cur = colList(d.call); colReplace(d.call, [...cur, ...COLS[d.call].all.filter(c => !cur.includes(c))]); return render(); }
+  if (d.cdefault) { colReplace(d.cdefault, [...COLS[d.cdefault].defaults]); return render(); }
+  if (d.cmore) {
+    if (d.cmore[0] === "b") UI.editMore = !UI.editMore; else UI[d.cmore].more = !UI[d.cmore].more;
+    return render();
+  }
+  if (d.edit !== undefined) { UI.edit = UI.edit === +d.edit ? null : +d.edit; UI.editMore = false; return render(); }
+  if (d.sfpreset) { UI[d.sfpreset].sf.statuses = [...POTENTIAL_FA]; return render(); }
+  if (d.sfclear) { UI[d.sfclear].sf.statuses = []; return render(); }
+  if (d.up !== undefined || d.down !== undefined || d.del !== undefined) UI.edit = null;
   if (d.up !== undefined) { const i = +d.up; [PANELS[i - 1], PANELS[i]] = [PANELS[i], PANELS[i - 1]]; savePanels(); return render(); }
   if (d.down !== undefined) { const i = +d.down; [PANELS[i + 1], PANELS[i]] = [PANELS[i], PANELS[i + 1]]; savePanels(); return render(); }
   if (d.del !== undefined) { PANELS.splice(+d.del, 1); savePanels(); return render(); }
@@ -897,7 +1063,19 @@ document.addEventListener("change", async e => {
     const boxes = [...document.querySelectorAll(`input[data-col="${d.col}"]`)];
     setCols(d.col, boxes.filter(x => x.checked).map(x => x.value)); return render();
   }
+  if (d.cbox) {
+    const arr = colList(d.cbox), i = arr.indexOf(el.value);
+    if (el.checked && i < 0) arr.push(el.value); else if (!el.checked && i >= 0) arr.splice(i, 1);
+    colCommit(d.cbox);
+    return render();
+  }
   if (d.fagg !== undefined) { UI.cb.fields[+d.fagg].agg = el.value; return render(); }
+  if (d.sfyear) { UI[d.sfyear].sf.year = el.value; return render(); }
+  if (d.sfstat) {
+    const st = UI[d.sfstat].sf.statuses, i = st.indexOf(el.value);
+    if (el.checked && i < 0) st.push(el.value); else if (!el.checked && i >= 0) st.splice(i, 1);
+    return render();
+  }
   if (d.moneyfmt !== undefined) { PANELS[+d.moneyfmt].money = el.value; savePanels(); return render(); }
   if (d.flabel !== undefined) { UI.cb.fields[+d.flabel].label = el.value; return render(); }
   const set = {
@@ -946,7 +1124,7 @@ document.addEventListener("toggle", e => {
     return;
   }
   if (!D.index.snapshots.length) {
-    document.getElementById("head").innerHTML = `<div class="fg-brandbar"><span class="fg-logo">FanGraphs</span><span class="fg-brand-sub">RosterResource tools</span></div><h1 class="fg-h1">RosterResource dashboard</h1>`;
+    document.getElementById("head").innerHTML = `<div class="fg-brandbar"><span class="fg-brand-sub">RosterResource tools</span></div><h1 class="fg-h1">VaynerResource</h1>`;
     document.getElementById("main").innerHTML = `<div class="notice">No data has been published yet. Check back after the first scheduled refresh.</div>`;
     return;
   }

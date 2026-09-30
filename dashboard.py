@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from rr import config, export, fgstyle, players, sources, views  # noqa: E402
 from rr.gate import GateClosed, _fmt  # noqa: E402
 
-st.set_page_config(page_title="RosterResource dashboard", page_icon="⚾", layout="wide")
+st.set_page_config(page_title="VaynerResource", page_icon="⚾", layout="wide")
 st.html(fgstyle.STREAMLIT_CSS)
 
 
@@ -112,7 +112,7 @@ def access_gate() -> None:
     code = _setting("access_code")
     if not code or st.session_state.get("rr_access_ok"):
         return
-    st.html(fgstyle.page_title_html("RosterResource dashboard", "Enter the access code to continue."))
+    st.html(fgstyle.page_title_html("VaynerResource", "Enter the access code to continue."))
     entered = st.text_input("Access code", type="password")
     if entered:
         if hmac.compare_digest(entered.encode(), str(code).encode()):
@@ -148,7 +148,7 @@ with st.sidebar:
     by_id = {x["id"]: x["manifest"] for x in snaps}
     st.html(fgstyle.section_html("Data"))
     sid = st.selectbox("Snapshot", list(by_id), format_func=lambda i: snap_label(by_id[i]),
-                       help="Each snapshot is one pull from FanGraphs RosterResource. The newest is first.")
+                       help="Each snapshot is one data pull. The newest is first.")
     MANIFEST = by_id[sid]
     avail = SRC.available(sid)
     if st.button("Check for newer data", width="stretch"):
@@ -193,8 +193,8 @@ ctx = views.Ctx(tables_for=lambda p, t: SRC.tables_for(sid, p, t), avail=avail,
                 frame_fn=lambda p, teams, tb: SRC.frame(sid, p, tuple(teams), tb),
                 coverage_fn=lambda p: SRC.coverage(sid, p))
 
-st.html(fgstyle.page_title_html("RosterResource dashboard",
-                                f"Snapshot {snap_label(MANIFEST)}. {export.ATTRIBUTION}."))
+st.html(fgstyle.page_title_html("VaynerResource",
+                                f"Snapshot {snap_label(MANIFEST)}."))
 if DEMO:
     st.warning("Sample mode: every player, team figure, salary and injury shown here is invented. "
                "Remove `demo = true` from the app's secrets to show real data.")
@@ -460,7 +460,6 @@ def board_tab():
             st.warning("Not available in the selected snapshot.")
         else:
             show(df)
-        st.html(f"<div class='fg-src'>{export.ATTRIBUTION}.</div>")
 
 
 def export_tab():
@@ -487,3 +486,5 @@ tabs = st.tabs(["All Teams", "Player Lookup", "Combine by Player", "Custom Panel
 for tab, fn in zip(tabs, [league_tab, player_tab, combine_tab, custom_tab, board_tab, export_tab]):
     with tab:
         fn()
+
+st.html(f"<div class='poweredby'>{export.ATTRIBUTION}</div>")

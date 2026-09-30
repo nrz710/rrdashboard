@@ -109,6 +109,12 @@ by-hand command for past seasons and does nothing until `config.SEASON_PARAM` is
 - **Yearly Payroll & Status**: a selection of its own in All Teams, Custom Panel and
   Combine by Player. Its columns are the seven seasons (salary, colored by status) and
   each season's status in words; choose as many or as few as you like.
+- **Contract status filter** (on any table with colored statuses): pick a season, tick
+  statuses (or press *Potential free agents*), and only players with those statuses that
+  season remain. Saved with the panel on the dashboard and in exports.
+  Seasons the contract data leaves blank are projected from service time (6+ years =
+  free agent, 3+ = arbitration, otherwise pre-arbitration) and shown in italics. A player
+  on two payrolls after a trade counts once, on his current team's row.
 - **Custom Panel**, **Dashboard**, **Export**: build, arrange, and download. Dashboard
   panels that show money offer LONG ($1,000,000) or SHORT ($1.000, $.750) formatting.
 

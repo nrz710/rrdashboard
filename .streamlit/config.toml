@@ -9,7 +9,7 @@ maxUploadSize = 1           # MB; only small layout files are ever uploaded
 
 [theme]
 base = "light"
-primaryColor = "#50ae26"            # FanGraphs green
+primaryColor = "#8A5238"            # theme accent (black + #8A5238)
 backgroundColor = "#FFFFFF"
 secondaryBackgroundColor = "#F1F1F1"
 textColor = "#000000"

@@ -1,7 +1,7 @@
 """FanGraphs / RosterResource look, in one place.
 
 What was checked against the live site (www.fangraphs.com/roster-resource,
-Sept 2026): the brand green (#50ae26, the site's theme-color), the tab names
+Sept 2026): the brand color (FanGraphs green #50ae26; this project now uses black + #8A5238), the tab names
 and order, the AL/NL team-abbreviation strip, upper-case column headers,
 group header rows such as "ORIGINAL SIGNING INFO", section titles with a
 collapse arrow, IL statuses like "60IL", and the legend entry
@@ -23,16 +23,18 @@ import pandas as pd
 from . import config
 
 TOKENS = {
-    "green": "#50ae26",          # FanGraphs brand green (verified)
-    "green_dark": "#3f8a1e",
-    "link": "#2e7d0f",
+    # Theme: black + #8A5238 on white (replaces the original FanGraphs green).
+    "accent": "#8A5238",         # section bars, active tabs, selected buttons
+    "ink": "#000000",            # logo, header rule, tab strip line
+    "accent_tint": "#f4ebe6",    # row hover
+    "link": "#8A5238",
     "text": "#000000",
     "muted": "#666666",
     "header_bg": "#e6e6e6",      # column header row
     "group_bg": "#f4f4f4",       # "ORIGINAL SIGNING INFO" style row
     "border": "#c8c8c8",
     "row_alt": "#f7f7f7",
-    "acquired_bg": "#cfe8c1",    # "Acquired since end of last season"
+    "acquired_bg": "#ead8cd",    # "Acquired since end of last season" (tint of the accent)
     "il_bg": "#f6d3d3",          # injured list rows
     "font": 'Arial, "Helvetica Neue", Helvetica, sans-serif',
     "font_size": "12px",
@@ -191,8 +193,7 @@ def section_html(title: str, subtitle: str = "") -> str:
 
 def page_title_html(title: str, note: str = "") -> str:
     n = f"<div class='fg-page-note'>{html.escape(note)}</div>" if note else ""
-    return (f"<div class='fg-brandbar'><span class='fg-logo'>FanGraphs</span>"
-            f"<span class='fg-brand-sub'>RosterResource tools</span></div>"
+    return (f"<div class='fg-brandbar'><span class='fg-brand-sub'>RosterResource tools</span></div>"
             f"<h1 class='fg-h1'>{html.escape(title)}</h1>{n}")
 
 
@@ -212,7 +213,7 @@ def css(scope: str = "") -> str:
 {s} .fg-table tbody tr:nth-child(even) td {{ background: {t['row_alt']}; }}
 {s} .fg-table tbody tr.fg-acq td {{ background: {t['acquired_bg']}; }}
 {s} .fg-table tbody tr.fg-il td {{ background: {t['il_bg']}; }}
-{s} .fg-table tbody tr:hover td {{ background: #eef6e9; }}
+{s} .fg-table tbody tr:hover td {{ background: {t['accent_tint']}; }}
 {s} .fg-table a {{ color: {t['link']}; text-decoration: none; font-weight: 700; }}
 {s} .fg-table a:hover {{ text-decoration: underline; }}
 {s} .fg-wrap {{ overflow: auto; max-height: 520px; border: 1px solid {t['border']}; background: #fff; }}
@@ -221,13 +222,13 @@ def css(scope: str = "") -> str:
 {s} .fg-chip {{ border: 1px solid {t['border']}; padding: 1px 8px; }}
 {s} .fg-chip.fg-acq {{ background: {t['acquired_bg']}; }}
 {s} .fg-chip.fg-il {{ background: {t['il_bg']}; }}
-{s} .fg-section {{ background: {t['green']}; color: #fff; font: 700 13px {t['font']}; text-transform: uppercase;
+{s} .fg-section {{ background: {t['accent']}; color: #fff; font: 700 13px {t['font']}; text-transform: uppercase;
   padding: 5px 10px; margin: 0 0 6px; display: flex; justify-content: space-between; align-items: baseline;
   letter-spacing: .02em; }}
 {s} .fg-section-sub {{ font-weight: 400; font-size: 11px; text-transform: none; opacity: .92; }}
-{s} .fg-brandbar {{ display: flex; align-items: baseline; gap: 12px; border-bottom: 3px solid {t['green']};
+{s} .fg-brandbar {{ display: flex; align-items: baseline; gap: 12px; border-bottom: 3px solid {t['ink']};
   padding: 0 0 6px; margin: 0 0 10px; }}
-{s} .fg-logo {{ font: 900 26px {t['font']}; color: {t['green']}; letter-spacing: -.02em; }}
+{s} .fg-logo {{ font: 900 26px {t['font']}; color: {t['ink']}; letter-spacing: -.02em; }}
 {s} .fg-brand-sub {{ font: 12px {t['font']}; color: {t['muted']}; }}
 {s} .fg-h1 {{ font: 700 22px {t['font']}; margin: 0 0 4px; color: {t['text']}; }}
 {s} .fg-page-note {{ font: 12px {t['font']}; color: {t['muted']}; margin-bottom: 8px; }}
@@ -238,16 +239,17 @@ def css(scope: str = "") -> str:
 {s} .fg-table tbody tr td.pay-player {{ background: #d9d2e9 !important; }}
 {s} .fg-table tbody tr td.pay-mutual {{ background: #fce5cd !important; }}
 {s} .fg-table tbody tr td.pay-vesting {{ background: #d0e0e3 !important; }}
-{s} .fg-table tbody tr td.pay-fa {{ background: #eeeeee !important; color: #666; font-weight: 700; text-align: center; }}
+{s} .fg-table tbody tr td.pay-fa {{ background: #ffff00 !important; color: #000; font-weight: 700; text-align: center; }}
 {s} .fg-table tbody tr td.pay-minor {{ background: #f6f6f6 !important; color: #777; font-style: italic; }}
 {s} .fg-table td.pay-est {{ font-style: italic; }}
 {s} .fg-chip.pay-guaranteed {{ background: #ffffff; }} {s} .fg-chip.pay-arb {{ background: #fff2cc; }}
 {s} .fg-chip.pay-prearb {{ background: #d9ead3; }} {s} .fg-chip.pay-club {{ background: #cfe2f3; }}
 {s} .fg-chip.pay-player {{ background: #d9d2e9; }} {s} .fg-chip.pay-mutual {{ background: #fce5cd; }}
-{s} .fg-chip.pay-vesting {{ background: #d0e0e3; }} {s} .fg-chip.pay-fa {{ background: #eeeeee; }}
+{s} .fg-chip.pay-vesting {{ background: #d0e0e3; }} {s} .fg-chip.pay-fa {{ background: #ffff00; }}
 {s} .fg-chip.pay-minor {{ background: #f6f6f6; font-style: italic; }} {s} .fg-chip.pay-est {{ font-style: italic; }}
 {s} .fg-player-name {{ font: 700 24px {t['font']}; margin: 4px 0 0; }}
 {s} .fg-player-meta {{ font: 13px {t['font']}; color: {t['muted']}; margin: 0 0 10px; }}
+{s} .poweredby {{ margin: 28px 0 8px; padding-top: 8px; border-top: 1px solid #ddd; font-size: 11px; color: #777; text-align: center; }}
 {s} .fg-src {{ font: 11px {t['font']}; color: {t['muted']}; margin: 4px 0 14px; }}
 """
 
@@ -260,29 +262,29 @@ STREAMLIT_CSS = f"""
 button[data-variant="pills"], .stButton button p, .stDownloadButton button p {{ font-family: {TOKENS['font']}; }}
 .block-container {{ padding-top: 1.2rem; max-width: 1400px; }}
 /* Tab strip, like RosterResource's grey tabs with the active one in green */
-[data-testid="stTabs"] [role="tablist"], div[data-baseweb="tab-list"] {{ gap: 2px; border-bottom: 3px solid {TOKENS['green']}; }}
+[data-testid="stTabs"] [role="tablist"], div[data-baseweb="tab-list"] {{ gap: 2px; border-bottom: 3px solid {TOKENS['ink']}; }}
 [data-testid="stTab"], button[data-baseweb="tab"] {{ background: #eeeeee; border: 1px solid {TOKENS['border']};
   border-bottom: none; padding: 6px 14px !important; border-radius: 0; }}
 [data-testid="stTab"] p, button[data-baseweb="tab"] p {{ font-size: 13px; font-weight: 700; color: #333; }}
 [data-testid="stTab"][aria-selected="true"], button[data-baseweb="tab"][aria-selected="true"] {{
-  background: {TOKENS['green']}; border-color: {TOKENS['green']}; }}
+  background: {TOKENS['accent']}; border-color: {TOKENS['accent']}; }}
 [data-testid="stTab"][aria-selected="true"] p, button[data-baseweb="tab"][aria-selected="true"] p {{ color: #fff; }}
 div[data-baseweb="tab-highlight"], div[data-baseweb="tab-border"] {{ display: none; }}
 /* Page and team selectors as square RosterResource-style buttons */
 button[data-variant="pills"] {{ border-radius: 0; min-height: 26px; padding: 2px 9px; font-size: 12px; font-weight: 700;
   border: 1px solid {TOKENS['border']}; background: #f4f4f4; color: #222; }}
 button[data-variant="pills"][aria-pressed="true"], button[data-variant="pills"][aria-checked="true"],
-button[data-variant="pills"][data-selected="true"] {{ background: {TOKENS['green']} !important;
-  border-color: {TOKENS['green']} !important; color: #fff !important; }}
+button[data-variant="pills"][data-selected="true"] {{ background: {TOKENS['accent']} !important;
+  border-color: {TOKENS['accent']} !important; color: #fff !important; }}
 button[data-variant="pills"][aria-pressed="true"] *, button[data-variant="pills"][aria-checked="true"] *,
 button[data-variant="pills"][data-selected="true"] * {{ color: #fff !important; }}
 [data-testid="stButtonGroup"] [role="toolbar"] {{ gap: 2px; }}
 div[data-testid="stExpander"] details {{ border-radius: 0; border-color: {TOKENS['border']}; }}
-div[data-testid="stExpander"] summary {{ background: {TOKENS['green']}; }}
+div[data-testid="stExpander"] summary {{ background: {TOKENS['accent']}; }}
 div[data-testid="stExpander"] summary p {{ font-weight: 700; text-transform: uppercase; font-size: 13px; color: #fff; }}
 div[data-testid="stExpander"] summary svg {{ color: #fff; fill: #fff; }}
 .stButton button, .stDownloadButton button {{ border-radius: 2px; }}
-section[data-testid="stSidebar"] {{ border-right: 3px solid {TOKENS['green']}; }}
+section[data-testid="stSidebar"] {{ border-right: 3px solid {TOKENS['ink']}; }}
 </style>
 """
 

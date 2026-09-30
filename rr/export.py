@@ -11,7 +11,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
 from . import config, fgstyle
 
-ATTRIBUTION = "Source: FanGraphs RosterResource (fangraphs.com)"
+ATTRIBUTION = "Powered by FanGraphs"  # shown once, at the bottom
 _BAD_SHEET_CHARS = re.compile(r"[\[\]:*?/\\]")
 
 
@@ -41,7 +41,7 @@ def to_excel(items: list[tuple[str, pd.DataFrame]], meta: dict) -> bytes:
     head_font = Font(name="Arial", bold=True, size=10)
     head_fill = PatternFill("solid", fgColor=_hex(t["header_bg"]))
     title_font = Font(name="Arial", bold=True, size=11, color="FFFFFF")
-    title_fill = PatternFill("solid", fgColor=_hex(t["green"]))
+    title_fill = PatternFill("solid", fgColor=_hex(t["accent"]))
     body_font = Font(name="Arial", size=10)
     alt_fill = PatternFill("solid", fgColor=_hex(t["row_alt"]))
     acq_fill = PatternFill("solid", fgColor=_hex(t["acquired_bg"]))
@@ -53,8 +53,8 @@ def to_excel(items: list[tuple[str, pd.DataFrame]], meta: dict) -> bytes:
         used: set[str] = {"About"}
         about = pd.DataFrame(
             [("Report", meta.get("title", "")), ("Data snapshot", meta.get("snapshot", "")),
-             ("Exported", meta.get("exported", "")), ("Source", ATTRIBUTION)]
-            + [(f"Sheet: {t_}", f"{len(df)} rows") for t_, df in items],
+             ("Exported", meta.get("exported", ""))]
+            + [(f"Sheet: {t_}", f"{len(df)} rows") for t_, df in items] + [("", ""), (ATTRIBUTION, "")],
             columns=["Field", "Value"])
         about.to_excel(xw, sheet_name="About", index=False)
         ws = xw.sheets["About"]
@@ -70,7 +70,7 @@ def to_excel(items: list[tuple[str, pd.DataFrame]], meta: dict) -> bytes:
             out.to_excel(xw, sheet_name=name, index=False, startrow=1)
             ws = xw.sheets[name]
             ncol = max(1, out.shape[1])
-            ws.cell(1, 1, f"{title.upper()}  ({ATTRIBUTION})")
+            ws.cell(1, 1, title.upper())
             for j in range(1, ncol + 1):
                 ws.cell(1, j).fill = title_fill
                 ws.cell(1, j).font = title_font
@@ -117,7 +117,7 @@ def to_html(items: list[tuple[str, pd.DataFrame]], meta: dict) -> str:
     blocks = "\n".join(
         f"<div class='fg-block'>{fgstyle.section_html(title, f'{len(df)} rows')}"
         f"{fgstyle.table_html(df, max_rows=100000)}"
-        f"<div class='fg-src'>{esc(ATTRIBUTION)}. Snapshot {esc(meta.get('snapshot', ''))}.</div></div>"
+        f"<div class='fg-src'>Snapshot {esc(meta.get('snapshot', ''))}.</div></div>"
         for title, df in items)
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -127,4 +127,5 @@ def to_html(items: list[tuple[str, pd.DataFrame]], meta: dict) -> str:
 {fgstyle.page_title_html(meta.get('title', 'Roster report'),
                          f"Data snapshot {meta.get('snapshot', '')}. Exported {meta.get('exported', '')}.")}
 {blocks}
+<div class="poweredby">{esc(ATTRIBUTION)}</div>
 </body></html>"""

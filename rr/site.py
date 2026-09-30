@@ -173,7 +173,7 @@ def _table_payload(df: pd.DataFrame, columns: list[str], per_team: bool, season:
     return {
         "columns": data_cols,
         "labels": {c: ("SEASON AGE" if c == "SeasonAge" else fgstyle.header_label(c)) for c in data_cols},
-        "tips": {"SeasonAge": f"Age on June 30, {season}. Worked out from FanGraphs' age (to one decimal), so it "
+        "tips": {"SeasonAge": f"Age on June 30, {season}. Worked out from the age in the data (to one decimal), so it "
                               "can be a year off for birthdays within about two weeks of June 30."}
                 if "SeasonAge" in data_cols else {},
         "money_cols": money_columns(body, data_cols),
@@ -229,7 +229,9 @@ def _payroll_tables(src, sid: str, meta: dict, season: int, log) -> list[tuple[d
         ypay["labels"] = {c: c.upper() for c in ycols}
         ypay["legend"] = payroll.LEGEND
         ypay["always_cols"] = ["Player"]
-        ypay["tips"] = {**{y: f"{y} salary, colored by contract status" for y in years},
+        ypay["tips"] = {**{y: f"{y} salary, colored by contract status. Italic = estimate or projected "
+                              "(arbitration projections; seasons with no contract on file projected from service time: "
+                              "6+ years = free agent, 3+ = arbitration, else pre-arbitration)" for y in years},
                         **{f"{y} Status": f"{y} contract status" for y in years}}
         out.append(({"table": "yearly-payroll", "title": "YEARLY PAYROLL & STATUS", "rows": len(yt),
                      "page": YEARLY_PAGE, "player": True}, ypay))
@@ -317,7 +319,7 @@ def build(data_dir: Path, out_dir: Path, *, log=print) -> dict:
                  + [{"key": YEARLY_PAGE, "label": YEARLY_LABEL, "team_tool": True, "built": True}],
         "header_labels": fgstyle.HEADER_LABELS,
         "preferred": config.PREFERRED_TABLES,
-        "attribution": "Source: FanGraphs RosterResource (fangraphs.com)",
+        "attribution": "Powered by FanGraphs",
     })
     log(f"Site written to {out_dir} ({len(snaps)} snapshot(s)).")
     return {"snapshots": len(snaps)}
