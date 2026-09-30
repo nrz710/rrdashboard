@@ -120,6 +120,11 @@ by-hand command for past seasons and does nothing until `config.SEASON_PARAM` is
   as July of the draft year) and *Under club control through [year]* (players whose first
   free-agent season, recorded or projected, comes after that year; options count as not yet
   free). Players with nothing known about their future contract aren't highlighted.
+- **Sorting**: click any column title to sort (again to reverse). Amounts sort numerically;
+  text such as FA / ARB comes after the amounts and blanks always last. Dashboard panels keep
+  their sort, and exports follow it.
+- **PLAYER (LAST, FIRST)**: an optional column in every player table (handles "Jr.",
+  "De La Cruz", and trailing notes like "(CHC)"); sort it to order by last name.
 - **Custom Panel**, **Dashboard**, **Export**: build, arrange, and download. Dashboard
   panels that show money offer LONG ($1,000,000) or SHORT ($1.000, $.750) formatting.
 

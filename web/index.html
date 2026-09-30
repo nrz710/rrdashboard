@@ -92,6 +92,9 @@
   .hl-acq-chip { background: #ead8cd; } .hl-ctl-chip { background: #dce7f3; }
   footer.poweredby { max-width: 1400px; margin: 0 auto; padding: 10px 20px 24px; border-top: 1px solid #e3e3e3; font-size: 11px; color: #777; text-align: center; }
   .fg-wrap { max-height: 560px; }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { background: #d9d9d9; }
+  th.sorted { background: #d0d0d0; }
   @media (max-width: 700px) { .wrap { padding: 10px; } .fg-h1 { font-size: 18px; } }
 </style>
 </head>
@@ -155,9 +158,15 @@ async function table(page, tid) {
       if (t.urls && typeof t.urls[i] === "string" && t.urls[i].startsWith("/")) o._url = "https://www.fangraphs.com" + t.urls[i];
       if (t.cell_cls) { o._cc = {}; for (const c in t.cell_cls) o._cc[c] = t.cell_cls[c][i]; }
       if (t.acq) o._acq = t.acq[i];
+      if (t.name_col) o[LAST_FIRST] = lastFirst(o[t.name_col]);
       return o;
     });
     t.page = page; t.tid = tid;
+    if (t.name_col && !t.columns.includes(LAST_FIRST)) {  // offered right after the player's name
+      const at = t.columns.indexOf(t.name_col);
+      t.columns.splice(at < 0 ? t.columns.length : at + 1, 0, LAST_FIRST);
+      t.labels = { ...(t.labels || {}), [LAST_FIRST]: "PLAYER (LAST, FIRST)" };
+    }
     D.tables[key] = t;
   }
   return D.tables[key];
@@ -223,10 +232,33 @@ function perTeam(m, page) { return (m.available[page] || []).some(t => t); }
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const normCol = c => String(c).split(".").pop().toLowerCase().replace(/[^a-z0-9]/g, "");
 function headerLabel(c) {
+  if (c === LAST_FIRST) return "PLAYER (LAST, FIRST)";
   const n = normCol(c);
   if (HL[n]) return HL[n];
   return String(c).split(".").pop().replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/_/g, " ").toUpperCase();
 }
+// "Pete Crow-Armstrong" -> "Crow-Armstrong, Pete"; "Ronald Acuna Jr." -> "Acuna Jr., Ronald";
+// "Elly De La Cruz" -> "De La Cruz, Elly". Already "Last, First" stays as is.
+const NAME_SUFFIX = new Set(["jr", "jr.", "sr", "sr.", "ii", "iii", "iv", "v"]);
+const NAME_PARTICLE = new Set(["de", "del", "della", "la", "las", "los", "da", "das", "do", "dos", "di", "du", "van", "von", "der", "den", "le", "st", "st.", "san", "santa"]);
+function lastFirst(name) {
+  if (typeof name !== "string" || !name.trim()) return name;
+  let n = name.trim(), note = "";
+  const m = n.match(/^(.*?)\s*(\([^)]*\))\s*$/);  // a trailing note like "(CHC)" stays at the end
+  if (m && m[1]) { n = m[1]; note = " " + m[2]; }
+  if (n.includes(",")) return n + note;
+  const parts = n.split(/\s+/);
+  if (parts.length < 2) return n + note;
+  let end = parts.length;
+  const suffix = [];
+  while (end > 1 && NAME_SUFFIX.has(parts[end - 1].toLowerCase())) suffix.unshift(parts[--end]);
+  let start = end - 1;
+  while (start > 1 && NAME_PARTICLE.has(parts[start - 1].toLowerCase())) start--;
+  const last = parts.slice(start, end).concat(suffix).join(" ");
+  const first = parts.slice(0, start).join(" ");
+  return (first ? `${last}, ${first}` : n) + note;
+}
+const LAST_FIRST = "PlayerLastFirst";
 function normName(s) {
   if (typeof s !== "string" || !s.trim()) return "";
   s = s.trim();
@@ -275,12 +307,35 @@ function cmp(a, b) {
 function sortRows(rows, col, asc = true) {
   if (!col) return rows;
   const byAbbr = col === "Team";
-  return rows.map((r, i) => [r, i]).sort((x, y) => {
-    let a = x[0][col], b = y[0][col];
-    if (byAbbr) { a = NAME2SLUG[a] ? TEAM[NAME2SLUG[a]].abbr : a; b = NAME2SLUG[b] ? TEAM[NAME2SLUG[b]].abbr : b; }
-    const c = cmp(a, b);
-    return (asc ? c : -c) || (x[1] - y[1]);
-  }).map(x => x[0]);
+  const key = v => byAbbr && NAME2SLUG[v] ? TEAM[NAME2SLUG[v]].abbr : v;
+  // three groups, each sorted in the chosen direction: numbers, then text (FA, ARB...), then blanks
+  const nums = [], text = [], blank = [];
+  rows.forEach((r, i) => {
+    const v = key(r[col]);
+    if (isBlank(v)) blank.push([r, i]);
+    else if (toNum(v) !== null) nums.push([r, i, toNum(v)]);
+    else text.push([r, i, String(v)]);
+  });
+  const dir = asc ? 1 : -1;
+  nums.sort((x, y) => dir * (x[2] - y[2]) || x[1] - y[1]);
+  text.sort((x, y) => dir * x[2].localeCompare(y[2]) || x[1] - y[1]);
+  return nums.concat(text, blank).map(x => x[0]);
+}
+// click a column title to sort: first click ascending, next descending
+function applySort(view, sort) {
+  if (!view) return view;
+  view.sort = sort || null;
+  if (sort && sort.col && view.cols.includes(sort.col)) view.rows = sortRows(view.rows, sort.col, sort.asc !== false);
+  return view;
+}
+function sortState(ctx) {
+  if (ctx[0] === "b") return PANELS[+ctx.slice(1)].hsort || null;
+  return UI.sorts[ctx] || null;
+}
+function setSortState(ctx, col) {
+  const cur = sortState(ctx);
+  const next = cur && cur.col === col ? { col, asc: !(cur.asc !== false) } : { col, asc: true };
+  if (ctx[0] === "b") { PANELS[+ctx.slice(1)].hsort = next; savePanels(); } else UI.sorts[ctx] = next;
 }
 function filterRows(rows, cols, needle) {
   needle = (needle || "").trim().toLowerCase();
@@ -325,7 +380,9 @@ function tableHTML(view, maxRows = SHOW) {
   const season = D.index.season;
   const seen = new Set();
   const tips = view.tips || {};
-  const head = "<tr>" + cols.map(c => `<th title="${esc(tips[c] || labels[c] || headerLabel(c))}">${esc(labels[c] || headerLabel(c))}</th>`).join("") + "</tr>";
+  const sorted = view.sort && view.sort.col, arrow = c => sorted === c ? (view.sort.asc !== false ? " ▲" : " ▼") : "";
+  const head = "<tr>" + cols.map(c => `<th ${view.sortCtx ? `data-sortctx="${view.sortCtx}" data-col="${esc(c)}" class="sortable${sorted === c ? " sorted" : ""}"` : ""}
+      title="${esc((tips[c] || labels[c] || headerLabel(c)) + (view.sortCtx ? " (click to sort)" : ""))}">${esc(labels[c] || headerLabel(c))}${arrow(c)}</th>`).join("") + "</tr>";
   const cellSeen = new Set();
   const body = rows.slice(0, maxRows).map(r => {
     const hl = view.noHighlight ? [] : hlClasses(r);
@@ -596,7 +653,7 @@ async function panelView(p) {
     if (kind === "summary") {
       const r = rollup(rows, p.by, p.value, p.how);
       const m = new Set(p.how !== "count" && (t.money_cols || []).includes(p.value) ? [r.cols[1]] : []);
-      return { ...r, labels: {}, money: m, moneyMode: p.money || "long" };
+      return applySort({ ...r, labels: {}, money: m, moneyMode: p.money || "long" }, p.hsort);
     }
     let cols = (p.columns || []).filter(c => t.columns.includes(c));
     for (const c of (t.always_cols || []).slice().reverse()) if (!cols.includes(c)) cols = [c, ...cols];  // e.g. the player's name
@@ -605,11 +662,11 @@ async function panelView(p) {
     if (t.name_col && !cols.includes(t.name_col)) cols = [t.name_col, ...cols];  // who the row is about, always
     if (t.has_team) cols = ["Team", ...cols.filter(c => c !== "Team")];
     rows = filterRows(rows, cols, p.filter);
-    rows = sortRows(rows, p.sort_by, p.ascending !== false);
-    return { cols, rows, labels: t.labels, nameCol: t.name_col, money: new Set(t.money_cols || []),
-             tips: t.tips, legend: t.legend, moneyMode: p.money || "long" };
+    rows = sortRows(rows, p.sort_by, p.ascending !== false);  // older panels
+    return applySort({ cols, rows, labels: t.labels, nameCol: t.name_col, money: new Set(t.money_cols || []),
+             tips: t.tips, legend: t.legend, moneyMode: p.money || "long" }, p.hsort);
   }
-  if (kind === "combined") return { ...(await combine(p.spec)), moneyMode: p.money || "long" };
+  if (kind === "combined") return applySort({ ...(await combine(p.spec)), moneyMode: p.money || "long" }, p.hsort);
   if (kind === "player") {
     const rows = [];
     for (const s of await profile(p.player_key)) {
@@ -647,6 +704,8 @@ const UI = {
   cb: { page: null, table: {}, pick: [], how: "first", fields: [], rowsFrom: "any", teams: [], amb: false, sort: "Team", title: "Combined player view", colOpen: false },
   cu: { page: null, teams: [], table: {}, cols: {}, filter: "", sort: "", asc: true, title: "", colOpen: false },
   ex: { title: "Roster report" },
+  // header sorts for the views on screen (dashboard panels keep their own); tables start sorted by team
+  sorts: { lg: { col: "Team", asc: true }, cu: { col: "Team", asc: true }, cb: { col: "Team", asc: true } },
 };
 const TABS = [["league", "All Teams"], ["player", "Player Lookup"], ["combine", "Combine by Player"],
               ["custom", "Custom Panel"], ["board", "Dashboard"], ["export", "Export"]];
@@ -715,10 +774,10 @@ async function viewLeague() {
   const sfYears = Object.keys(t.cell_cls || {});
   const sf = sfYears.length ? sfState(s, sfYears) : null;
   const panel = { kind: "table", page: s.page, teams: s.teams.length ? [...s.teams] : ["*"], table: tid, columns: cols,
-                  filter: s.filter, sort_by: s.sort, ascending: true, status_filter: sf,
+                  filter: s.filter, status_filter: sf, hsort: sortState("lg"),
                   title: `${titleOf(m, s.page, tid)}: ${s.teams.length ? s.teams.map(x => TEAM[x].abbr).join(", ") : "ALL 30 TEAMS"}` };
   const view = await panelView(panel);
-  const sortOpts = (t.has_team ? ["Team"] : []).concat(cols);
+  view.sortCtx = "lg";
   let roll = "";
   if (s.rollOpen) {
     const by = [...(t.has_team ? ["Team"] : []), ...all].includes(s.by) ? s.by : (t.has_team ? "Team" : all[0]);
@@ -729,7 +788,7 @@ async function viewLeague() {
         <label class="narrow">Show<select id="lg-how">${[["count", "Row counts"], ["sum", "Total"], ["mean", "Average"], ["max", "Highest"], ["min", "Lowest"]].map(([v, l]) => opt(v, l, s.how)).join("")}</select></label>
         <label>Group by<select id="lg-by">${[...(t.has_team ? ["Team"] : []), ...all].map(c => opt(c, headerLabel(c), by)).join("")}</select></label>
         <label>${s.how === "count" ? "Split by" : "Of"}<select id="lg-val">${opt("", "(none)", s.value)}${all.map(c => opt(c, headerLabel(c), s.value)).join("")}</select></label>
-      </div>` + (ok ? tableHTML(await panelView(summ)) + `<div class="row"><button id="lg-addsum">Add roll-up to the dashboard</button></div>`
+      </div>` + (ok ? tableHTML(Object.assign(await panelView({ ...summ, hsort: sortState("roll") }), { sortCtx: "roll" })) + `<div class="row"><button id="lg-addsum">Add roll-up to the dashboard</button></div>`
                     : `<div class="hint">Pick a numeric column to total or average.</div>`);
     UI._lgSumm = summ;
   }
@@ -744,7 +803,7 @@ async function viewLeague() {
     ${colBoxHTML("lg", all, cols, t.labels, t.noise, s.more, defaultCols(t, all))}
     <div class="row">
       <label>Keep rows containing<input type="search" id="lg-filter" value="${esc(s.filter)}"></label>
-      <label class="narrow">Sort by<select id="lg-sort">${sortOpts.map(c => opt(c, headerLabel(c), s.sort)).join("")}</select></label>
+      <span class="hint" style="margin:0 0 6px;align-self:end">Click a column title to sort.</span>
     </div>
     ${sectionHTML(panel.title, [sfText(sf, t.legend), `${view.rows.length.toLocaleString()} rows`].filter(Boolean).join(" · "))}${tableHTML(view)}
     <div class="row"><button class="primary" id="lg-add">Add this table to the dashboard</button>
@@ -772,7 +831,8 @@ async function viewPlayer() {
     <div class="row"><button class="primary" id="pl-add">Add to dashboard</button></div>`;
   if (p.key.startsWith("name?:")) html += `<div class="notice">More than one player has this name, so these rows couldn't be matched to one of them.</div>`;
   for (const sct of prof)
-    html += sectionHTML(titleOf(await meta(D.sid), sct.page, sct.tid), pageLabel(sct.page)) + tableHTML(sct.view);
+    html += sectionHTML(titleOf(await meta(D.sid), sct.page, sct.tid), pageLabel(sct.page))
+          + tableHTML(Object.assign(applySort(sct.view, sortState("pl:" + sct.tid)), { sortCtx: "pl:" + sct.tid }));
   UI._pl = p;
   return html;
 }
@@ -789,7 +849,7 @@ async function viewCombine() {
   const tid = tlist.includes(s.table[s.page]) ? s.table[s.page] : tlist[0];
   s.table[s.page] = tid;
   const info = m.byKey[s.page + "\u0000" + tid];
-  const pickable = info.columns.filter(c => c !== info.name_col);
+  const pickable = (await table(s.page, tid)).columns.filter(c => c !== info.name_col);
   const pickLabels = (await table(s.page, tid)).labels;
   s.pick = s.pick.filter(c => pickable.includes(c));
   let html = `<div class="hint">Pick columns from any tools. Each player becomes one row, with the columns side by side.</div>
@@ -813,15 +873,16 @@ async function viewCombine() {
   if (s.rowsFrom !== "any" && !firstOf.includes(Number(s.rowsFrom))) s.rowsFrom = "any";
   const labels = s.fields.map(f => f.label || f.column);
   const spec = { fields: s.fields.map(f => ({ ...f })), rows_from: s.rowsFrom === "any" ? "any" : Number(s.rowsFrom),
-                 teams: s.teams.length ? [...s.teams] : ["*"], include_ambiguous: s.amb, sort_by: s.sort };
+                 teams: s.teams.length ? [...s.teams] : ["*"], include_ambiguous: s.amb };
   const probe = await combine({ ...spec, status_filter: null });
   const cbYears = probe.coloredCols || [];
   spec.status_filter = cbYears.length ? sfState(s, cbYears) : null;
-  const res = spec.status_filter ? await combine(spec) : probe;
+  const res = applySort(spec.status_filter ? await combine(spec) : probe, sortState("cb"));
+  res.sortCtx = "cb";
   UI._cbSpec = spec;
   html += `<div class="row">
       <label>Include players who appear in<select id="cb-rows">${opt("any", "Any of these tools", s.rowsFrom)}${firstOf.map(i => opt(i, `${pageLabel(s.fields[i].page)} (${s.fields[i].table})`, s.rowsFrom)).join("")}</select></label>
-      <label class="narrow">Sort by<select id="cb-sort">${["Team", "Player", ...labels].map(c => opt(c, c, s.sort)).join("")}</select></label>
+      <span class="hint" style="margin:0 0 6px;align-self:end">Click a column title to sort.</span>
       <label class="narrow" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="cb-amb" ${s.amb ? "checked" : ""}> Include ambiguous names</label>
     </div>${teamStripHTML(s.teams, "cb")}
     ${cbYears.length ? statusFilterHTML("cb", cbYears, res.legend || probe.legend, s.sf) : ""}
@@ -859,9 +920,10 @@ async function viewCustom() {
   const sfYears = Object.keys(t.cell_cls || {});
   const sf = sfYears.length ? sfState(s, sfYears) : null;
   const panel = { kind: "table", page: s.page, teams: s.teams.length ? [...s.teams] : ["*"], table: tid, columns: cols,
-                  filter: s.filter, sort_by: s.sort || null, ascending: s.asc, title, status_filter: sf };
+                  filter: s.filter, title, status_filter: sf, hsort: sortState("cu") };
   UI._cuPanel = panel;
   const view = await panelView(panel);
+  view.sortCtx = "cu";
   return `<div class="lbl">Page</div><div class="pills">${pages.map(p => `<button data-cupage="${p}" class="${p === s.page ? "on" : ""}">${esc(pageLabel(p))}</button>`).join("")}</div>
     ${pageInfo.team_tool && t.has_team ? teamStripHTML(s.teams, "cu") : ""}
     ${sfYears.length ? statusFilterHTML("cu", sfYears, t.legend, s.sf) : ""}
@@ -871,8 +933,7 @@ async function viewCustom() {
     ${colBoxHTML("cu", all, cols, t.labels, t.noise, s.more, defaultCols(t, all))}
     <div class="row">
       <label>Keep rows containing<input type="search" id="cu-filter" value="${esc(s.filter)}"></label>
-      <label class="narrow">Sort by<select id="cu-sort">${opt("", "(none)", s.sort)}${(t.has_team ? ["Team"] : []).concat(cols).map(c => opt(c, headerLabel(c), s.sort)).join("")}</select></label>
-      <label class="narrow">Order<select id="cu-asc">${opt("1", "Ascending", s.asc ? "1" : "0")}${opt("0", "Descending", s.asc ? "1" : "0")}</select></label>
+      <span class="hint" style="margin:0 0 6px;align-self:end">Click a column title to sort.</span>
       <label>Panel title<input type="text" id="cu-title" value="${esc(title)}"></label>
     </div>
     ${sectionHTML(title, `${view.rows.length.toLocaleString()} rows`)}${tableHTML(view)}
@@ -897,7 +958,7 @@ async function viewBoard() {
       ${(p.kind || "table") === "table" || p.kind === "combined" ? `<button data-edit="${i}" class="${UI.edit === i ? "primary" : ""}">${UI.edit === i ? "Done" : "Edit columns"}</button>` : ""}
       <button data-csv="${i}">CSV</button><button data-del="${i}" title="Remove">Remove</button></div>
       ${UI.edit === i ? await panelColEditor(p, i) : ""}
-      ${v ? tableHTML(v) : `<div class="notice">Not available in the selected snapshot.</div>`}
+      ${v ? tableHTML(Object.assign(v, { sortCtx: "b" + i })) : `<div class="notice">Not available in the selected snapshot.</div>`}
 </div>`;
   }
   return html;
@@ -999,6 +1060,8 @@ let debounce = null;
 function later(fn) { clearTimeout(debounce); debounce = setTimeout(fn, 300); }
 
 document.addEventListener("click", async e => {
+  const th = e.target.closest("th[data-sortctx]");
+  if (th) { setSortState(th.dataset.sortctx, th.dataset.col); return render(); }
   const b = e.target.closest("button, a[data-clear]");
   if (!b) return;
   const d = b.dataset;
@@ -1059,7 +1122,7 @@ document.addEventListener("click", async e => {
       renderHead(); return render();
     }
     case "lg-add": return addPanel({ ...UI._lgPanel });
-    case "lg-addsum": return addPanel({ ...UI._lgSumm });
+    case "lg-addsum": return addPanel({ ...UI._lgSumm, hsort: sortState("roll") });
     case "lg-roll": UI.lg.rollOpen = !UI.lg.rollOpen; return render();
     case "lg-csv": { const v = await panelView(UI._lgPanel); if (v) download(slug(UI._lgPanel.title) + ".csv", csvOf(v), "text/csv"); return; }
     case "lg-dl": {
@@ -1081,7 +1144,7 @@ document.addEventListener("click", async e => {
       for (const c of s.pick) s.fields.push({ page: s.page, table: tid, column: c, agg: s.how, label: headerLabel(c) });
       s.pick = []; s.colOpen = false; return render();
     }
-    case "cb-add": return addPanel({ kind: "combined", title: UI.cb.title, spec: { ...UI._cbSpec } });
+    case "cb-add": return addPanel({ kind: "combined", title: UI.cb.title, spec: { ...UI._cbSpec }, hsort: sortState("cb") });
     case "cb-clear": UI.cb.fields = []; return render();
     case "cu-add": return addPanel({ ...UI._cuPanel });
     case "lay-save": return download("rr_layout.json", JSON.stringify(PANELS, null, 2), "application/json");
