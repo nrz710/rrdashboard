@@ -97,7 +97,38 @@ LEAGUE_PAGES: dict[str, str] = {k: PAGE_LABELS[k] for k in PAGE_LABELS if k not 
 # team strip cover these; for league-wide fetches it filters on the page's own team column.
 TEAM_TOOLS: list[str] = list(_PER_TEAM_TOOLS)
 
+# ---- Player statistics from FanGraphs' major-league leaderboards ----
+# Each leaderboard page lists every player (qual=0) for one timeframe and one stat group,
+# so these 7 requests cover the whole league. They're part of the normal gated pull
+# (same 48-hour limit, pacing and halt-on-block rules). Set to False to stop fetching them.
+FETCH_PLAYER_STATS = True
+STATS_BASE_URL = "https://www.fangraphs.com/leaders/major-league"
+STATS_YEARS_BACK = 2  # "last 3 years" = the platform year and the two before it
+
+
+def stats_pages(season: int) -> dict[str, tuple[str, str]]:
+    """page key -> (label, query string). Platform year = `season`."""
+    first = season - STATS_YEARS_BACK
+    q = ("pos=all&stats={stats}&lg=all&qual=0&type={type}&season={end}&season1={start}&month=0"
+         "&ind=0&team=0&rost=0&age=0&filter=&players=0&startdate=&enddate=&pageitems=2000000000")
+    one = dict(end=season, start=season)
+    three = dict(end=season, start=first)
+    return {
+        "stats/bat-platform": (f"Batting {season}", q.format(stats="bat", type=8, **one)),
+        "stats/bat-statcast-platform": (f"Batting {season} (Statcast)", q.format(stats="bat", type=24, **one)),
+        "stats/bat-3yr": (f"Batting {first}-{season}", q.format(stats="bat", type=8, **three)),
+        "stats/fld-platform": (f"Fielding {season}", q.format(stats="fld", type=1, **one)),
+        "stats/fld-statcast-platform": (f"Fielding {season} (Statcast)", q.format(stats="fld", type=24, **one)),
+        "stats/fld-3yr": (f"Fielding {first}-{season}", q.format(stats="fld", type=1, **three)),
+        "stats/fld-statcast-3yr": (f"Fielding {first}-{season} (Statcast)", q.format(stats="fld", type=24, **three)),
+    }
+
+
+STATS_PAGE_KEYS = list(stats_pages(2000))  # stable keys, whatever the season
+
 ALL_PAGES = dict(PAGE_LABELS)
+if FETCH_PLAYER_STATS:
+    ALL_PAGES.update({k: label for k, (label, _) in stats_pages(2000).items()})
 
 # --- Politeness -----------------------------------------------------------
 
@@ -198,7 +229,16 @@ def current_season() -> int:
     return datetime.now().year
 
 
+def stats_season() -> int:
+    """The platform year for player statistics: the season in progress from April on,
+    otherwise the season just finished (no current-season stats exist before April)."""
+    now = datetime.now()
+    return now.year if now.month >= 4 else now.year - 1
+
+
 def page_url(page_key: str, team_slug: str | None) -> str:
+    if page_key in STATS_PAGE_KEYS:
+        return f"{STATS_BASE_URL}?{stats_pages(stats_season())[page_key][1]}"
     if page_key in TEAM_PAGES:
         if not team_slug:
             raise ValueError(f"{page_key} needs a team slug")

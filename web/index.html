@@ -69,6 +69,12 @@
   .colbox.closed .colsel { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
   button.coltoggle { background: none; border: none; padding: 2px 4px 2px 0; font-size: 13px; font-weight: 400; color: var(--ink); }
   button.coltoggle:hover { background: var(--tint); }
+  .cgroups { max-height: 340px; overflow: auto; }
+  .cgroup { margin-bottom: 6px; }
+  .cghead { font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: .03em; margin: 4px 0 2px;
+    border-bottom: 1px solid #eee; display: flex; gap: 10px; align-items: baseline; }
+  .cghead .linkish { font-size: 11px; padding: 0; }
+  .cgroups .colgrid { max-height: none; overflow: visible; }
   .colgrid.more { border-top: 1px dashed #ddd; margin-top: 4px; padding-top: 4px; }
   button.linkish { background: none; border: none; color: var(--accent); padding: 4px 0; font-weight: 400; text-decoration: underline; }
   .fields td.ord { white-space: nowrap; width: 1%; }
@@ -277,6 +283,22 @@ function money(v, mode) {
 }
 function isMoney(view, col) { return view && view.money ? view.money.has(col) : MONEY.test(String(col)); }
 const isBlank = v => v === null || v === undefined || v === "" || (typeof v === "number" && isNaN(v));
+// statistics formats: pct1 25.8%, avg3 .280, dec2 3.74, dec1 10.6, int 158
+function statText(n, f) {
+  if (f === "pct1") return (n * 100).toFixed(1) + "%";
+  if (f === "avg3") { const t = n.toFixed(3); return t.replace(/^(-?)0\./, "$1."); }
+  if (f === "dec2") return n.toFixed(2);
+  if (f === "dec1") return n.toFixed(1);
+  if (f === "int") { const r = Math.round(n); return Math.abs(r) >= 10000 ? r.toLocaleString("en-US") : String(r); }
+  return null;
+}
+function plainValue(v, col, view) {  // what a cell shows, as plain text (also used for CSV)
+  if (isBlank(v)) return "";
+  if (isMoney(view, col) && toNum(v) !== null) return money(toNum(v), view && view.moneyMode);
+  const f = view && view.formats && view.formats[col];
+  if (f && toNum(v) !== null) return statText(toNum(v), f);
+  return v;
+}
 function fmt(v, col, view) {
   if (isBlank(v)) return ["", false];
   if (typeof v === "boolean") return [v ? "Y" : "N", false];
@@ -284,6 +306,8 @@ function fmt(v, col, view) {
     const n = toNum(v);
     if (n !== null) return [money(n, view && view.moneyMode), true];
   }
+  const f = view && view.formats && view.formats[col];
+  if (f && toNum(v) !== null) return [statText(toNum(v), f), true];
   if (typeof v === "number") {
     if (Number.isInteger(v)) return [Math.abs(v) >= 10000 ? v.toLocaleString("en-US") : String(v), true];
     return [v.toFixed(3).replace(/0+$/, "").replace(/\.$/, ""), true];
@@ -481,7 +505,7 @@ function hlBarHTML() {
 }
 const COLS = {};  // per box: { all, defaults } from the last draw, for the All / Defaults buttons
 const COL_CLOSED = {};  // per box: collapsed?
-function colBoxHTML(id, all, chosen, labels, noise, more, defaults, note) {
+function colBoxHTML(id, all, chosen, labels, noise, more, defaults, note, grouping) {
   labels = labels || {};
   const lab = c => labels[c] || headerLabel(c);
   const count = {};
@@ -489,8 +513,19 @@ function colBoxHTML(id, all, chosen, labels, noise, more, defaults, note) {
   const show = c => count[lab(c)] > 1 ? `${lab(c)} (${c})` : lab(c);
   const noiseSet = new Set(noise || []);
   const main = all.filter(c => !noiseSet.has(c)), extra = all.filter(c => noiseSet.has(c));
-  COLS[id] = { all: more ? all : main, defaults: defaults || [] };
+  COLS[id] = { all: more ? all : main, defaults: defaults || [], groups: {} };
   const box = cols => cols.map(c => `<label title="${esc(c)}"><input type="checkbox" data-cbox="${id}" value="${esc(c)}" ${chosen.includes(c) ? "checked" : ""}> ${esc(show(c))}</label>`).join("");
+  // statistics in labelled groups (this season, last season, projections, rankings...); everything else first
+  const gmap = (grouping && grouping.groups) || {};
+  const order = [...((grouping && grouping.order) || [])];
+  main.forEach(c => { if (gmap[c] && !order.includes(gmap[c])) order.push(gmap[c]); });
+  const general = main.filter(c => !gmap[c]);
+  const sections = [["PLAYER & ROSTER INFO", general], ...order.map(g => [g, main.filter(c => gmap[c] === g)])].filter(([, cs]) => cs.length);
+  sections.forEach(([g, cs]) => { COLS[id].groups[g] = cs; });
+  const grid = sections.length > 1
+    ? `<div class="cgroups">${sections.map(([g, cs]) => `<div class="cgroup"><div class="cghead">${esc(g)}
+          <button class="linkish" data-cgroup="${id}" data-g="${esc(g)}">tick all ${cs.length}</button></div><div class="colgrid">${box(cs)}</div></div>`).join("")}</div>`
+    : `<div class="colgrid">${box(main)}</div>`;
   const chips = chosen.map((c, i) => `<span class="cchip">${esc(show(c))}<button data-cmove="${id}" data-i="${i}" data-dir="-1" ${i === 0 ? "disabled" : ""} title="Move left">◀</button><button data-cmove="${id}" data-i="${i}" data-dir="1" ${i === chosen.length - 1 ? "disabled" : ""} title="Move right">▶</button><button data-cdel="${id}" data-i="${i}" title="Remove">✕</button></span>`).join("");
   const closed = !!COL_CLOSED[id];  // collapsed: keep the header and the selected columns, hide the list
   return `<div class="colbox ${closed ? "closed" : ""}"><div class="colhead">
@@ -498,7 +533,7 @@ function colBoxHTML(id, all, chosen, labels, noise, more, defaults, note) {
       ${closed ? "" : `<span class="hint" style="margin:0">${esc(note || "Tick the columns you want. They're added in the order you tick them, and only these columns go to the dashboard.")}</span>
       ${defaults ? `<button data-cdefault="${id}">Defaults</button>` : ""}<button data-call="${id}">All</button><button data-cnone="${id}">None</button>`}</div>
     <div class="colsel"><b>Selected, in order:</b> ${chosen.length ? chips : `<i class="hint" style="margin:0">none yet</i>`}</div>
-    ${closed ? "" : `<div class="colgrid">${box(main)}</div>
+    ${closed ? "" : `${grid}
     ${extra.length ? `<button class="linkish" data-cmore="${id}">${more ? "Hide" : "Show"} ${extra.length} more (technical) columns</button>${more ? `<div class="colgrid more">${box(extra)}</div>` : ""}` : ""}`}
   </div>`;
 }
@@ -567,7 +602,7 @@ function agg(vals, how) {
 async function combine(spec) {
   const plist = await players();
   const pmap = new Map(plist.map(p => [p.key, p]));
-  const cols = [], values = new Map(), moneyCols = new Set(), colors = new Map();
+  const cols = [], values = new Map(), moneyCols = new Set(), colors = new Map(), formats = {};
   let legend = null;
   let keep = null;
   for (let i = 0; i < spec.fields.length; i++) {
@@ -577,6 +612,7 @@ async function combine(spec) {
     const label = f.label || `${f.column} (${pageLabel(f.page)})`;
     cols.push(label);
     if ((t.money_cols || []).includes(f.column) && (f.agg || "first") !== "count") moneyCols.add(label);
+    if (t.formats && t.formats[f.column] && !["count", "all"].includes(f.agg || "first")) formats[label] = t.formats[f.column];
     // One player can appear on several clubs' pages (e.g. two clubs still paying him after a trade).
     // Use his current club's row first, so "first" values and status colors describe that club.
     const groups = new Map();
@@ -611,7 +647,9 @@ async function combine(spec) {
   rows = applyStatus(rows, spec.status_filter);
   rows = sortRows(sortRows(rows, "Player"), "Team");
   if (spec.sort_by && spec.sort_by !== "Team") rows = sortRows(rows, spec.sort_by);
-  return { cols: ["Player", "Team", ...cols], rows, money: moneyCols, legend, coloredCols };
+  // the headings you chose are shown as written (so "2026 wRC+" stays "2026 wRC+")
+  const labels = Object.fromEntries(cols.map(c => [c, c]));
+  return { cols: ["Player", "Team", ...cols], rows, labels, money: moneyCols, formats, legend, coloredCols };
 }
 async function profile(key) {
   const m = await meta(D.sid);
@@ -621,7 +659,8 @@ async function profile(key) {
     const rows = t.objs.filter(o => o._pkey === key);
     if (!rows.length) continue;
     const cols = dispCols(t).filter(c => rows.some(r => !isBlank(r[c])));
-    out.push({ page: info.page, tid: info.table, view: { cols, rows, labels: t.labels, nameCol: t.name_col } });
+    out.push({ page: info.page, tid: info.table, view: { cols, rows, labels: t.labels, nameCol: t.name_col,
+                                                         formats: t.formats || {}, money: new Set(t.money_cols || []) } });
   }
   return out;
 }
@@ -664,7 +703,7 @@ async function panelView(p) {
     rows = filterRows(rows, cols, p.filter);
     rows = sortRows(rows, p.sort_by, p.ascending !== false);  // older panels
     return applySort({ cols, rows, labels: t.labels, nameCol: t.name_col, money: new Set(t.money_cols || []),
-             tips: t.tips, legend: t.legend, moneyMode: p.money || "long" }, p.hsort);
+             formats: t.formats || {}, tips: t.tips, legend: t.legend, moneyMode: p.money || "long" }, p.hsort);
   }
   if (kind === "combined") return applySort({ ...(await combine(p.spec)), moneyMode: p.money || "long" }, p.hsort);
   if (kind === "player") {
@@ -800,7 +839,7 @@ async function viewLeague() {
     <div class="row">
       <label>Table<select id="lg-table">${cov.map(c => opt(c.table, c.title || c.table, tid)).join("")}</select></label>
     </div>
-    ${colBoxHTML("lg", all, cols, t.labels, t.noise, s.more, defaultCols(t, all))}
+    ${colBoxHTML("lg", all, cols, t.labels, t.noise, s.more, defaultCols(t, all), null, { groups: t.groups, order: t.group_order })}
     <div class="row">
       <label>Keep rows containing<input type="search" id="lg-filter" value="${esc(s.filter)}"></label>
       <span class="hint" style="margin:0 0 6px;align-self:end">Click a column title to sort.</span>
@@ -859,7 +898,8 @@ async function viewCombine() {
       <label class="narrow">If several rows<select id="cb-how" title="first: first value. all: every distinct value, joined. count: number of rows. sum/mean/max/min: numeric.">${AGGS.map(a => opt(a, a, s.how)).join("")}</select></label>
     </div>
     ${colBoxHTML("cb", pickable, s.pick, pickLabels, (await table(s.page, tid)).noise, s.more, null,
-                 "Tick the columns to take from this table, in the order you want them, then press Add columns.")}
+                 "Tick the columns to take from this table, in the order you want them, then press Add columns.",
+                 { groups: (await table(s.page, tid)).groups, order: (await table(s.page, tid)).group_order })}
     <div class="row"><button class="primary" id="cb-addcols" ${s.pick.length ? "" : "disabled"}>Add ${s.pick.length || ""} column${s.pick.length === 1 ? "" : "s"} to the table below</button></div>`;
   if (!s.fields.length) return html + `<div class="hint">Add columns from two or more tools to build a combined player table.</div>`;
   html += `<table class="fields"><thead><tr><th>Column heading</th><th>If several rows</th><th>Tool</th><th>Source column</th><th></th></tr></thead><tbody>` +
@@ -930,7 +970,7 @@ async function viewCustom() {
     <div class="row">
       <label>Table<select id="cu-table">${cov.map(c => opt(c.table, c.title || c.table, tid)).join("")}</select></label>
     </div>
-    ${colBoxHTML("cu", all, cols, t.labels, t.noise, s.more, defaultCols(t, all))}
+    ${colBoxHTML("cu", all, cols, t.labels, t.noise, s.more, defaultCols(t, all), null, { groups: t.groups, order: t.group_order })}
     <div class="row">
       <label>Keep rows containing<input type="search" id="cu-filter" value="${esc(s.filter)}"></label>
       <span class="hint" style="margin:0 0 6px;align-self:end">Click a column title to sort.</span>
@@ -977,7 +1017,8 @@ async function panelColEditor(p, i) {
   const all = pickOrder(t, pickable(t));
   const cols = (Array.isArray(p.columns) ? p.columns : defaultCols(t, all)).filter(c => all.includes(c));
   return colBoxHTML(id, all, cols, t.labels, t.noise, UI.editMore, defaultCols(t, all),
-                    "Tick columns to add them to this panel, in the order you tick them. Changes save automatically.");
+                    "Tick columns to add them to this panel, in the order you tick them. Changes save automatically.",
+                    { groups: t.groups, order: t.group_order });
 }
 
 // ------------------------------------------------------------------ Export ---
@@ -997,7 +1038,7 @@ async function exportItems() {
 }
 function csvOf(v) {
   const q = x => { x = isBlank(x) ? "" : String(x); return /[",\n]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x; };
-  const val = (r, c) => isMoney(v, c) && toNum(r[c]) !== null ? money(toNum(r[c]), v.moneyMode) : r[c];
+  const val = (r, c) => plainValue(r[c], c, v);
   return [v.cols.map(c => (v.labels || {})[c] || headerLabel(c)).map(q).join(","),
           ...v.rows.map(r => v.cols.map(c => q(val(r, c))).join(","))].join("\n");
 }
@@ -1031,8 +1072,11 @@ async function exportXLSX(items, title, fname) {
     const aoa = [v.cols.map(c => labels[c] || headerLabel(c)), ...v.rows.map(r => v.cols.map(c => cell(r[c], c)))];
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     const zfmt = v.moneyMode === "short" ? '"$"#.000,,' : '"$"#,##0';
-    v.cols.forEach((c, j) => { if (!isMoney(v, c)) return;
-      for (let i = 1; i < aoa.length; i++) { const ref = XLSX.utils.encode_cell({ r: i, c: j }); if (ws[ref] && ws[ref].t === "n") ws[ref].z = zfmt; } });
+    const ZSTAT = { pct1: "0.0%", avg3: ".000", dec2: "0.00", dec1: "0.0", int: "#,##0" };
+    v.cols.forEach((c, j) => {
+      const z = isMoney(v, c) ? zfmt : ZSTAT[(v.formats || {})[c]];
+      if (!z) return;
+      for (let i = 1; i < aoa.length; i++) { const ref = XLSX.utils.encode_cell({ r: i, c: j }); if (ws[ref] && ws[ref].t === "n") ws[ref].z = z; } });
     ws["!cols"] = v.cols.map((c, j) => ({ wch: Math.min(50, Math.max(...aoa.slice(0, 200).map(row => String(row[j] ?? "").length)) + 2) }));
     ws["!freeze"] = { xSplit: 0, ySplit: 1 };
     XLSX.utils.book_append_sheet(wb, ws, name);
@@ -1097,6 +1141,7 @@ document.addEventListener("click", async e => {
   }
   if (d.cdel) { colList(d.cdel).splice(+d.i, 1); colCommit(d.cdel); return render(); }
   if (d.ctoggle) { COL_CLOSED[d.ctoggle] = !COL_CLOSED[d.ctoggle]; return render(); }
+  if (d.cgroup) { const cur = colList(d.cgroup); colReplace(d.cgroup, [...cur, ...(COLS[d.cgroup].groups[d.g] || []).filter(c => !cur.includes(c))]); return render(); }
   if (d.cnone) { colReplace(d.cnone, []); return render(); }
   if (d.call) { const cur = colList(d.call); colReplace(d.call, [...cur, ...COLS[d.call].all.filter(c => !cur.includes(c))]); return render(); }
   if (d.cdefault) { colReplace(d.cdefault, [...COLS[d.cdefault].defaults]); return render(); }
@@ -1141,7 +1186,8 @@ document.addEventListener("click", async e => {
     case "pl-add": { const p = UI._pl; return addPanel({ kind: "player", player_key: p.key, player_name: p.Player, title: `Player card: ${p.Player}` }); }
     case "cb-addcols": {
       const s = UI.cb, tid = s.table[s.page];
-      for (const c of s.pick) s.fields.push({ page: s.page, table: tid, column: c, agg: s.how, label: headerLabel(c) });
+      const lt = (await table(s.page, tid)).labels || {};
+      for (const c of s.pick) s.fields.push({ page: s.page, table: tid, column: c, agg: s.how, label: lt[c] || headerLabel(c) });
       s.pick = []; s.colOpen = false; return render();
     }
     case "cb-add": return addPanel({ kind: "combined", title: UI.cb.title, spec: { ...UI._cbSpec }, hsort: sortState("cb") });

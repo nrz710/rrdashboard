@@ -55,6 +55,11 @@ HEADER_LABELS = {
     "eligibledate": "ELIGIBLE", "gamedate": "DATE", "bo": "ORDER", "is40man": "40-MAN",
     "servicetime": "MLB SERVICE TIME", "signyear": "YEAR", "signround": "RD", "signpick": "PICK",
     "originalteam": "SIGNING TEAM", "roster40": "40-MAN",
+    "draftyear": "DRAFT YEAR", "draftround": "DRAFT ROUND", "draftpick": "DRAFT PICK",
+    "injurynotes": "INJURY NOTES", "injurydate": "INJURY DATE", "retrodate": "RETRO DATE",
+    "projectedlevel": "PROJECTED LEVEL", "acquiredcode": "HOW ACQUIRED (CODE)", "acquiredrecent": "RECENTLY ACQUIRED",
+    "isnri": "NON-ROSTER INVITEE", "iscv19": "COVID LIST", "isafl": "ARIZONA FALL LEAGUE", "mlevel": "LEVEL",
+    "playernamedisplay": "PLAYER NAME (DISPLAY)",
 }
 
 # Column groups drawn above the headers when these columns appear side by side.

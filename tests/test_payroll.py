@@ -181,3 +181,33 @@ def test_first_free_agent_year_per_player():
     assert fa["a"] == 2027          # free agent in 2027 -> not under control through 2027
     assert fa["b"] == 2033          # signed through 2032 -> under control beyond the window
     assert fa["c"] == 2032          # pre-arb, 1 year of service after 2026: 6 years after 2031 -> FA in 2032
+
+
+def test_stat_titles_groups_formats():
+    from rr import stats
+    d = lambda c: stats.describe(c, 2026)
+    assert d("actual_bat_HR") == {"label": "2026 HR", "group": "2026 STATS: BATTING", "format": "int", "dup": False}
+    assert d("actualz_pit_ERA")["label"] == "2025 ERA" and d("actualz_pit_ERA")["format"] == "dec2"
+    assert d("proj_bat_wRC+")["label"] == "ROS PROJ wRC+"
+    assert d("actual_bat_K%")["label"] == "2026 K% (BAT)" and d("actual_pit_K%")["label"] == "2026 K% (PITCH)"
+    assert d("actual_bat_AVG")["format"] == "avg3" and d("actual_bat_Barrel%")["format"] == "pct1"
+    assert d("actual_pit_EV")["label"] == "2026 EXIT VELO ALLOWED" and d("actual_bat_pivFA")["label"] == "2026 FASTBALL VELO SEEN"
+    assert d("actual_bat_K%1")["dup"] is True and d("actual_bat_K%1")["label"] == "2026 K% (BAT) (ALTERNATE)"
+    assert d("prht7")["label"] == "POWER RANK: HITTER, LAST 7 DAYS"
+    assert d("player") is None and d("age") is None
+
+
+def test_pitchers_empty_batting_lines_are_blank():
+    from rr import stats
+    df = pd.DataFrame({"actual_bat_PA": [712, 0], "actual_bat_AVG": [0.28, 0.0], "actual_bat_wRC+": [158, -100],
+                       "actualz_bat_wRC+": [109, -100], "actualz_bat_HR": [31, 0], "actual_pit_ERA": [None, 3.74]})
+    out = stats.blank_empty_batting(df)
+    assert out.loc[0, "actual_bat_AVG"] == 0.28 and pd.isna(out.loc[1, "actual_bat_AVG"])
+    assert pd.isna(out.loc[1, "actualz_bat_HR"]) and out.loc[1, "actual_pit_ERA"] == 3.74
+
+
+def test_per_nine_stats_are_not_mistaken_for_copies():
+    from rr import stats
+    assert stats.describe("actual_pit_BB/9", 2026)["label"] == "2026 BB/9"
+    assert stats.describe("proj_pit_K/9", 2026)["label"] == "ROS PROJ K/9"
+    assert stats.describe("IP", 2026)["group"] == "2026 STATS: OVERALL"

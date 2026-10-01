@@ -119,7 +119,7 @@ def money_columns(df: pd.DataFrame, cols: list[str]) -> list[str]:
 
 _NOISE = re.compile(r"(loaddate|upurl|route$|mlbauto|minorbamid|minormasterid|retroid|npbbisid|^dbid$|statsid|"
                     r"^csid$|valueoverride|^oplayerid$|^teamid$|^playerteamid$|hidden|^dbteam$|"
-                    r"^type$|^typeid|^loaddate|^contractid$)")
+                    r"^type$|^typeid|^loaddate|^contractid$|^altmmid$|^refid$|^kboid$|^kbobisid$)")
 
 
 def _is_noise(col: str, cols: set) -> bool:
@@ -154,7 +154,8 @@ def _table_payload(df: pd.DataFrame, columns: list[str], per_team: bool, season:
             data_cols.remove(col)
     # drop columns with no values at all in this table
     data_cols = [c for c in data_cols if df[c].map(lambda v: v is not None and v == v and v != "").any()]
-    body = df[data_cols].copy()
+    from . import stats
+    body = stats.blank_empty_batting(df[data_cols])  # pitchers' zero batting lines -> blank
     for c in body.columns:  # shorter numbers: 108.7966031264559 -> 108.7966
         if pd.api.types.is_float_dtype(body[c]):
             body[c] = body[c].round(4)
@@ -166,15 +167,17 @@ def _table_payload(df: pd.DataFrame, columns: list[str], per_team: bool, season:
     fg_id_col = next((by_norm[n] for n in _FG_ID if n in by_norm), None)
     url_col = by_norm.get("upurl")
     colset = set(map(str, data_cols))
+    stat_labels, stat_groups, stat_formats, stat_dups = stats.catalog(data_cols, season)
     hidden = [c for c in data_cols if name_col and fgstyle.norm(c) in fgstyle._ID_COLS]
-    useful = [c for c in data_cols if c not in hidden and not _is_noise(c, colset)]
+    useful = [c for c in data_cols if c not in hidden and not _is_noise(c, colset) and c not in stat_dups]
     if name_col in useful:  # player name first
         useful = [name_col] + [c for c in useful if c != name_col]
     if "SeasonAge" in useful:  # season age instead of current age
         useful = [c for c in useful if fgstyle.norm(c) != "age"]
     return {
         "columns": data_cols,
-        "labels": {c: ("SEASON AGE" if c == "SeasonAge" else fgstyle.header_label(c)) for c in data_cols},
+        "labels": {c: ("SEASON AGE" if c == "SeasonAge" else stat_labels.get(c) or fgstyle.header_label(c)) for c in data_cols},
+        "groups": stat_groups, "group_order": stats.group_order(season), "formats": stat_formats,
         "tips": {"SeasonAge": f"Age on June 30, {season}. Worked out from the age in the data (to one decimal), so it "
                               "can be a year off for birthdays within about two weeks of June 30."}
                 if "SeasonAge" in data_cols else {},
@@ -196,7 +199,7 @@ def _derived_payload(df: pd.DataFrame, columns: list[str], money: list[str], cel
         "tips": {}, "hidden": [], "default_cols": default_cols, "name_col": name_col, "fg_id_col": None,
         "url_col": None, "urls": [u if isinstance(u, str) else None for u in df.get("_url", [None] * len(df))],
         "per_team": True, "has_team": True, "money_cols": money, "cell_cls": cells or {},
-        "rows": _json_values(body), "tslug": [x or None for x in df["_slug"]],
+        "rows": _json_values(body), "tslug": [x if isinstance(x, str) and x else None for x in df["_slug"]],
         "pkey": [x if isinstance(x, str) else None for x in df.get("_pkey", [None] * len(df))],
         "cls": [""] * len(df),
     }
@@ -248,6 +251,53 @@ def _payroll_tables(src, sid: str, meta: dict, season: int, log) -> list[tuple[d
     return out
 
 
+STATS_PAGE = "player-stats"   # a selection of its own (built here from the leaderboards, never fetched)
+STATS_LABEL = "Player Stats"
+
+
+def _player_stats_table(src, sid: str, meta: dict, index_players: pd.DataFrame | None, log) -> tuple[dict, dict, list] | None:
+    from . import playerstats
+    frames, sizes = {}, {}
+    for key in config.STATS_PAGE_KEYS:
+        best = None
+        for t in meta["tables"]:
+            if t["page"] != key:
+                continue
+            df = src.table(sid, key, t["table"])
+            if df is not None and playerstats.col(df, "playerid") and (best is None or len(df) > len(best)):
+                best = df
+        frames[key], sizes[key] = best, (0 if best is None else len(best))
+    if not any(v is not None for v in frames.values()):
+        return None
+    season = config.stats_season()
+    try:
+        season = int(meta["manifest"].get("stats_season") or season)
+    except (TypeError, ValueError):
+        pass
+    df, cols, labels, formats, groups, tips, problems = playerstats.build(frames, season)
+    # team for filtering: the leaderboard's team, or (for players with two teams this year) his current one
+    current = {}
+    if index_players is not None and len(index_players):
+        current = {k: config.NAME_TO_ABBR.get(t) for k, t in zip(index_players["key"], index_players["Team"])}
+    df["_slug"] = [config.team_slug_of(str(t)) if config.team_slug_of(str(t)) else config.team_slug_of(str(current.get(k) or ""))
+                   for t, k in zip(df["_team"], df["_pkey"])]
+    defaults = [c for c in cols[1:] if not c.split(" ", 1)[0].count("-") and " INN " not in c]  # platform year, no innings
+    payload = _derived_payload(df, cols, [], None, "Player", defaults)
+    payload.update({"labels": labels, "formats": formats, "groups": groups, "tips": tips, "always_cols": ["Player"],
+                    "group_order": [g for g in dict.fromkeys(groups[c] for c in cols[1:])]})
+    warnings = [f"Player stats: {p}" for p in problems]
+    if 0 < sizes.get("stats/bat-platform", 0) < 300:
+        warnings.append(f"Player stats: the {season} batting leaderboard listed only {sizes['stats/bat-platform']} players; "
+                        "FanGraphs may not have included everyone.")
+    missing = [k for k, v in sizes.items() if not v]
+    if missing:
+        warnings.append("Player stats: no data from " + ", ".join(missing))
+    log(f"Player stats: {len(df)} players, {season} and {season - 2}-{season}; "
+        + ("all stats found." if not problems else "missing: " + "; ".join(problems)))
+    info = {"table": "player-stats", "title": "PLAYER STATS", "rows": len(df), "page": STATS_PAGE, "player": True}
+    return info, payload, warnings
+
+
 def build(data_dir: Path, out_dir: Path, *, log=print) -> dict:
     data_dir, out_dir = Path(data_dir), Path(out_dir)
     if out_dir.exists():
@@ -287,7 +337,8 @@ def build(data_dir: Path, out_dir: Path, *, log=print) -> dict:
             _dump(sdir / f"t{n}.json", payload)
             tables.append({"file": f"t{n}.json", "page": t["page"], "table": t["table"],
                            "title": table_title(t["table"]), "teams": t["teams"],
-                           "rows": t["rows"], "same": t["same"], "player": t["player"], "stats": t["stats"],
+                           "rows": t["rows"], "same": t["same"], "stats": t["stats"],
+                           "player": t["player"] and t["page"] not in config.STATS_PAGE_KEYS,
                            "per_team": per_team, "has_team": payload["has_team"],
                            "name_col": payload["name_col"], "money_cols": payload["money_cols"],
                            "columns": [c for c in payload["columns"]]})
@@ -299,6 +350,15 @@ def build(data_dir: Path, out_dir: Path, *, log=print) -> dict:
                            "columns": payload["columns"], **info})
         if any(t["page"] == YEARLY_PAGE for t in tables):
             avail = {**avail, YEARLY_PAGE: avail.get("payroll", [])}
+        stat_warnings = []
+        built = _player_stats_table(src, sid, meta, src.index(sid).players, log)
+        if built:
+            info, payload, stat_warnings = built
+            _dump(sdir / "s0.json", payload)
+            tables.append({"file": "s0.json", "teams": len({x for x in payload["tslug"] if x}), "same": False, "stats": {},
+                           "per_team": True, "has_team": True, "name_col": "Player", "money_cols": [],
+                           "columns": payload["columns"], **info})
+            avail = {**avail, STATS_PAGE: sorted({x for x in payload["tslug"] if x})}
         seen: dict = {}
         for t in tables:  # titles must be unique within a page
             key = (t["page"], t["title"])
@@ -325,7 +385,7 @@ def build(data_dir: Path, out_dir: Path, *, log=print) -> dict:
         _dump(sdir / "players.json", {"key": list(p["key"]), "name": [str(x) for x in p["Player"]],
                                       "team": [x or "" for x in p["Team"]], "sources": [int(x) for x in p["Sources"]],
                                       "ambiguous": [bool(x) for x in p["Ambiguous"]]})
-        _dump(sdir / "meta.json", {"id": sid, "manifest": meta["manifest"], "warnings": meta.get("warnings", []),
+        _dump(sdir / "meta.json", {"id": sid, "manifest": meta["manifest"], "warnings": meta.get("warnings", []) + stat_warnings,
                                    "available": {k: [t or "" for t in v] for k, v in avail.items()},
                                    "pinfo": pinfo,
                                    "tables": tables})
@@ -339,7 +399,8 @@ def build(data_dir: Path, out_dir: Path, *, log=print) -> dict:
         "status": _status(data_dir), "season": season,
         "teams": teams,
         "pages": [{"key": k, "label": v, "team_tool": k in config.TEAM_TOOLS} for k, v in config.PAGE_LABELS.items()]
-                 + [{"key": YEARLY_PAGE, "label": YEARLY_LABEL, "team_tool": True, "built": True}],
+                 + [{"key": YEARLY_PAGE, "label": YEARLY_LABEL, "team_tool": True, "built": True},
+                    {"key": STATS_PAGE, "label": STATS_LABEL, "team_tool": True, "built": True}],
         "header_labels": fgstyle.HEADER_LABELS,
         "preferred": config.PREFERRED_TABLES,
         "attribution": "Powered by FanGraphs",

@@ -127,11 +127,19 @@ def test_gatecheck_halt_code(tmp_path, monkeypatch):
 
 
 # ---- lever 1: league-wide pages ----------------------------------------------------
-def test_request_count_is_97():
+def test_request_count_is_104():
+    """97 RosterResource pages + 7 league-wide stats leaderboards (one request each)."""
     from rr import config
     from rr.refresh import plan_jobs
     jobs = plan_jobs(list(config.TEAMS.values()), list(config.ALL_PAGES))
-    assert len(jobs) == 97
+    assert len(jobs) == 104
+    stats = [j for j in jobs if j.page.startswith("stats/")]
+    assert len(stats) == 7 and all(j.team is None for j in stats)
+    season = config.stats_season()
+    for j in stats:
+        assert j.url.startswith("https://www.fangraphs.com/leaders/major-league?") and "qual=0" in j.url
+        assert f"season={season}" in j.url and "pageitems=2000000000" in j.url
+    assert sum(f"season1={season - 2}" in j.url for j in stats) == 3
     urls = {j.url for j in jobs}
     for page in ("injury-report", "transaction-tracker", "closer-depth-chart"):
         assert f"https://www.fangraphs.com/roster-resource/{page}" in urls

@@ -281,6 +281,7 @@ class PlayerIndex(IndexBase):
                     id_name[toks[0]][(nm, raw)] += 1
                 tokens_col.append(toks)
                 names_col.append(nm)
+            d = d.copy()  # defragment before adding columns (avoids pandas warnings)
             d["_tok"], d["_nm"] = tokens_col, names_col
             frames[key] = d
 
@@ -318,6 +319,7 @@ class PlayerIndex(IndexBase):
                 if pk and raw is not None and how in ("name-only", "ambiguous"):
                     display[pk][raw] += 1
             d = d.drop(columns=["_tok", "_nm"])
+            d = d.copy()  # defragment before adding columns (avoids pandas warnings)
             d["_pkey"], d["_match"] = pkeys, matches
             for pk, tm in zip(d["_pkey"], d["_team"]):
                 if pk and isinstance(tm, str):

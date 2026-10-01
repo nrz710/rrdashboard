@@ -70,7 +70,7 @@ def run_refresh(*, gate: Gate, data_dir: Path, jobs: list[Job], kind: str, seaso
                 return EXIT_HOOK
 
         manifest = {
-            "kind": kind, "season": season, "planned": len(jobs),
+            "kind": kind, "season": season, "planned": len(jobs), "stats_season": config.stats_season(),
             "started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "status": "running", "results": [],
         }

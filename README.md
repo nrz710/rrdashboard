@@ -125,6 +125,16 @@ by-hand command for past seasons and does nothing until `config.SEASON_PARAM` is
   their sort, and exports follow it.
 - **PLAYER (LAST, FIRST)**: an optional column in every player table (handles "Jr.",
   "De La Cruz", and trailing notes like "(CHC)"); sort it to order by last name.
+- **Statistics**: the roster data carries this season's stats, last season's, rest-of-season
+  projections and power rankings. They have plain titles ("2026 HR", "2025 ERA", "ROS PROJ
+  wRC+"), are grouped in the Columns box (with "tick all" per group), and are formatted as
+  usual (.280, 25.8%, 3.74). Pitchers' empty batting lines show as blank.
+- **Player Stats** (its own selection; from FanGraphs' major-league leaderboards, 7 extra
+  requests per pull, still inside the 48-hour limit): platform year GS, innings at each
+  position, PA, HR, AVG, wRC+, xwOBA, OAA, fWAR, fWAR/700 PA; last 3 years GS, PA, wRC+, OAA,
+  fWAR, fWAR/700 PA. fWAR/700 PA = fWAR / PA x 700. The platform year is the season in
+  progress (or, before April, the one just finished). Settings: `FETCH_PLAYER_STATS` and
+  `STATS_YEARS_BACK` in `rr/config.py`. The website build log reports any stat it couldn't find.
 - **Custom Panel**, **Dashboard**, **Export**: build, arrange, and download. Dashboard
   panels that show money offer LONG ($1,000,000) or SHORT ($1.000, $.750) formatting.
 
