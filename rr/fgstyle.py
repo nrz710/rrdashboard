@@ -269,6 +269,7 @@ def css(scope: str = "") -> str:
 {s} .fg-table tbody tr td.pay-mutual {{ background: #fce5cd !important; }}
 {s} .fg-table tbody tr td.pay-vesting {{ background: #d0e0e3 !important; }}
 {s} .fg-table tbody tr td.pay-fa {{ background: #ffff00 !important; color: #000; font-weight: 700; text-align: center; }}
+{s} .fg-table td.ctr {{ text-align: center; }}
 {s} .fg-table tbody tr td.pay-minor {{ background: #f6f6f6 !important; color: #777; font-style: italic; }}
 {s} .fg-table td.pay-est {{ font-style: italic; }}
 {s} .fg-chip.pay-guaranteed {{ background: #ffffff; }} {s} .fg-chip.pay-arb {{ background: #fff2cc; }}

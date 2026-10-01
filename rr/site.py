@@ -130,6 +130,10 @@ def _is_noise(col: str, cols: set) -> bool:
     return base != str(col) and base in cols
 
 
+PAYROLL_LABELS = {"type": "CONTRACT STATUS", "typeatsigning": "STATUS AT SIGNING", "status": "OPTION DECISION",
+                  "contracttype": "CONTRACT TYPE", "payrolltype": "PAYROLL TYPE"}
+
+
 def _add_season_age(df: pd.DataFrame, columns: list[str], season: int) -> tuple[pd.DataFrame, list[str]]:
     """Depth-chart style tables give current age to one decimal plus the pull date; add the
     age on June 30 of the season next to it."""
@@ -143,7 +147,8 @@ def _add_season_age(df: pd.DataFrame, columns: list[str], season: int) -> tuple[
     return df, columns[:i] + ["SeasonAge"] + columns[i:]
 
 
-def _table_payload(df: pd.DataFrame, columns: list[str], per_team: bool, season: int) -> dict:
+def _table_payload(df: pd.DataFrame, columns: list[str], per_team: bool, season: int,
+                   page_is_payroll: bool = False) -> dict:
     df, columns = _add_season_age(df, list(columns), season)
     data_cols = [c for c in columns if c in df.columns]
     if per_team:
@@ -169,14 +174,18 @@ def _table_payload(df: pd.DataFrame, columns: list[str], per_team: bool, season:
     colset = set(map(str, data_cols))
     stat_labels, stat_groups, stat_formats, stat_dups = stats.catalog(data_cols, season)
     hidden = [c for c in data_cols if name_col and fgstyle.norm(c) in fgstyle._ID_COLS]
-    useful = [c for c in data_cols if c not in hidden and not _is_noise(c, colset) and c not in stat_dups]
+    payroll_words = ("type", "typeatsigning")  # on payroll pages "Type" is the contract status, not a code
+    useful = [c for c in data_cols if c not in hidden and c not in stat_dups
+              and (not _is_noise(c, colset) or (page_is_payroll and fgstyle.norm(c) in payroll_words))]
     if name_col in useful:  # player name first
         useful = [name_col] + [c for c in useful if c != name_col]
     if "SeasonAge" in useful:  # season age instead of current age
         useful = [c for c in useful if fgstyle.norm(c) != "age"]
     return {
         "columns": data_cols,
-        "labels": {c: ("SEASON AGE" if c == "SeasonAge" else stat_labels.get(c) or fgstyle.header_label(c)) for c in data_cols},
+        "labels": {c: ("SEASON AGE" if c == "SeasonAge" else
+                       (PAYROLL_LABELS.get(fgstyle.norm(c)) if page_is_payroll else None)
+                       or stat_labels.get(c) or fgstyle.header_label(c)) for c in data_cols},
         "groups": stat_groups, "group_order": stats.group_order(season), "formats": stat_formats,
         "tips": {"SeasonAge": f"Age on June 30, {season}. Worked out from the age in the data (to one decimal), so it "
                               "can be a year off for birthdays within about two weeks of June 30."}
@@ -184,6 +193,9 @@ def _table_payload(df: pd.DataFrame, columns: list[str], per_team: bool, season:
         "money_cols": money_columns(body, data_cols),
         "hidden": hidden, "default_cols": useful[:10], "name_col": name_col, "fg_id_col": fg_id_col,
         "noise": [c for c in data_cols if c not in hidden and c not in useful],
+        # contract status words (GUARANTEED, ARB 2, CLUB OPTION...) are centered
+        "center_cols": [c for c in data_cols if fgstyle.norm(c) in ("type", "typeatsigning", "status", "contracttype",
+                                                                      "payrolltype") and page_is_payroll],
         "url_col": url_col, "per_team": per_team, "has_team": any(tslug),
         "rows": _json_values(body) if data_cols else [[] for _ in range(len(df))],
         "tslug": tslug, "pkey": [p if isinstance(p, str) else None for p in df["_pkey"]], "cls": cls,
@@ -238,6 +250,7 @@ def _payroll_tables(src, sid: str, meta: dict, season: int, log) -> list[tuple[d
         ypay["labels"] = {c: c.upper() for c in ycols}
         ypay["legend"] = payroll.LEGEND
         ypay["always_cols"] = ["Player"]
+        ypay["center_cols"] = [c for c in ycols if c.endswith(" Status")]
         ypay["tips"] = {**{y: f"{y} salary, colored by contract status. Italic = estimate or projected "
                               "(arbitration projections; seasons with no contract on file projected from service time: "
                               "6+ years = free agent, 3+ = arbitration, else pre-arbitration)" for y in years},
@@ -333,7 +346,7 @@ def build(data_dir: Path, out_dir: Path, *, log=print) -> dict:
             if df is None:
                 continue
             per_team = any(avail.get(t["page"], []))
-            payload = _table_payload(df, t["columns"], per_team, season)
+            payload = _table_payload(df, t["columns"], per_team, season, page_is_payroll=t["page"] == "payroll")
             _dump(sdir / f"t{n}.json", payload)
             tables.append({"file": f"t{n}.json", "page": t["page"], "table": t["table"],
                            "title": table_title(t["table"]), "teams": t["teams"],

@@ -427,7 +427,8 @@ function tableHTML(view, maxRows = SHOW) {
         txt = `<a href="${esc(href)}" target="_blank" rel="noopener">${txt}</a>`;
       }
       if (c === "Team" && NAME2SLUG[r[c]]) txt = `<span title="${esc(r[c])}">${TEAM[NAME2SLUG[r[c]]].abbr}</span>`;
-      return `<td class="${num ? "num" : ""} ${cc}"${tip}>${txt}</td>`;
+      const ctr = (cc && !num && txt) || (view.center && view.center.has(c)) ? " ctr" : "";  // contract status: centered
+      return `<td class="${num ? "num" : ""} ${cc}${ctr}"${tip}>${txt}</td>`;
     }).join("") + "</tr>";
   }).join("");
   let legend = "";
@@ -602,7 +603,7 @@ function agg(vals, how) {
 async function combine(spec) {
   const plist = await players();
   const pmap = new Map(plist.map(p => [p.key, p]));
-  const cols = [], values = new Map(), moneyCols = new Set(), colors = new Map(), formats = {};
+  const cols = [], values = new Map(), moneyCols = new Set(), colors = new Map(), formats = {}, center = new Set();
   let legend = null;
   let keep = null;
   for (let i = 0; i < spec.fields.length; i++) {
@@ -613,6 +614,7 @@ async function combine(spec) {
     cols.push(label);
     if ((t.money_cols || []).includes(f.column) && (f.agg || "first") !== "count") moneyCols.add(label);
     if (t.formats && t.formats[f.column] && !["count", "all"].includes(f.agg || "first")) formats[label] = t.formats[f.column];
+    if ((t.center_cols || []).includes(f.column)) center.add(label);
     // One player can appear on several clubs' pages (e.g. two clubs still paying him after a trade).
     // Use his current club's row first, so "first" values and status colors describe that club.
     const groups = new Map();
@@ -649,7 +651,7 @@ async function combine(spec) {
   if (spec.sort_by && spec.sort_by !== "Team") rows = sortRows(rows, spec.sort_by);
   // the headings you chose are shown as written (so "2026 wRC+" stays "2026 wRC+")
   const labels = Object.fromEntries(cols.map(c => [c, c]));
-  return { cols: ["Player", "Team", ...cols], rows, labels, money: moneyCols, formats, legend, coloredCols };
+  return { cols: ["Player", "Team", ...cols], rows, labels, money: moneyCols, formats, center, legend, coloredCols };
 }
 async function profile(key) {
   const m = await meta(D.sid);
@@ -660,7 +662,8 @@ async function profile(key) {
     if (!rows.length) continue;
     const cols = dispCols(t).filter(c => rows.some(r => !isBlank(r[c])));
     out.push({ page: info.page, tid: info.table, view: { cols, rows, labels: t.labels, nameCol: t.name_col,
-                                                         formats: t.formats || {}, money: new Set(t.money_cols || []) } });
+                                                         formats: t.formats || {}, money: new Set(t.money_cols || []),
+                                                         center: new Set(t.center_cols || []), legend: t.legend } });
   }
   return out;
 }
@@ -703,7 +706,8 @@ async function panelView(p) {
     rows = filterRows(rows, cols, p.filter);
     rows = sortRows(rows, p.sort_by, p.ascending !== false);  // older panels
     return applySort({ cols, rows, labels: t.labels, nameCol: t.name_col, money: new Set(t.money_cols || []),
-             formats: t.formats || {}, tips: t.tips, legend: t.legend, moneyMode: p.money || "long" }, p.hsort);
+             formats: t.formats || {}, center: new Set(t.center_cols || []), tips: t.tips, legend: t.legend,
+             moneyMode: p.money || "long" }, p.hsort);
   }
   if (kind === "combined") return applySort({ ...(await combine(p.spec)), moneyMode: p.money || "long" }, p.hsort);
   if (kind === "player") {
