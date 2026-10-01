@@ -28,15 +28,33 @@ def fake_resp(status=200, text=PAGE, headers=None, url="https://x"):
 
 
 # ---- gate -----------------------------------------------------------------
-def test_gate_blocks_inside_48h_and_opens_after(tmp_path):
+def test_gate_blocks_inside_20h_and_opens_after(tmp_path):
     g = Gate(tmp_path)
     g.check()
     g.record("attempt_start")
     with pytest.raises(GateClosed):
         g.check()
     with pytest.raises(GateClosed):
-        g.check(now=utcnow() + timedelta(hours=47, minutes=59))
-    g.check(now=utcnow() + timedelta(hours=48, minutes=1))
+        g.check(now=utcnow() + timedelta(hours=19, minutes=59))
+    g.check(now=utcnow() + timedelta(hours=20, minutes=1))
+
+
+def test_nightly_schedule_allows_one_pull_per_night(tmp_path):
+    """Tries at 10:17, 11:17, 12:17 UTC each day: only the first passes, and a run that GitHub
+    starts late the night before doesn't make tonight's first try fail."""
+    import json
+    g = Gate(tmp_path)
+    night1 = (utcnow() - timedelta(days=3)).replace(hour=10, minute=17, second=0, microsecond=0)
+    late = night1 + timedelta(minutes=55)  # GitHub started last night's run 55 minutes late
+    g.log_path.write_text(json.dumps({"ts": late.isoformat(), "event": "attempt_start"}) + "\n")
+    night2 = night1 + timedelta(days=1)
+    g.check(now=night2)                                   # tonight's first try still pulls (23 h later)
+    with g.log_path.open("a") as f:
+        f.write(json.dumps({"ts": night2.isoformat(), "event": "attempt_start"}) + "\n")
+    for later in (timedelta(hours=1), timedelta(hours=2)):  # the 11:17 and 12:17 tries: no second pull
+        with pytest.raises(GateClosed):
+            g.check(now=night2 + later)
+    g.check(now=night2 + timedelta(days=1))               # next night pulls again
 
 
 def test_interval_cannot_be_lowered(tmp_path):

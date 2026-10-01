@@ -1,11 +1,12 @@
 """The rate limit, enforced in code.
 
 Rules implemented here:
-  * At most one refresh per 48 hours. The floor is a module constant; config
-    can raise the interval but never lower it.
+  * At most one refresh per 20 hours (the schedule runs it once a night). The floor
+    is a module constant; config can raise the interval but never lower it.
+    20 rather than 24 so a scheduled run that starts a little late doesn't skip a night.
   * The window is measured from the START of the last attempt, successful or
     not. So a scheduler that fires every hour, or a job that keeps failing,
-    still produces at most one burst of requests per 48 hours.
+    still produces at most one burst of requests per 20 hours.
   * Every attempt/success/failure is appended to data/state/pull_log.jsonl
     with a UTC timestamp, fsync'd before any request is made.
   * The check happens while holding an exclusive file lock, so two processes
@@ -21,7 +22,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-HARD_FLOOR = timedelta(hours=48)
+HARD_FLOOR = timedelta(hours=20)
 CLOCK_SKEW_TOLERANCE = timedelta(minutes=5)
 
 try:  # POSIX
@@ -73,7 +74,7 @@ def _fmt(ts: datetime | None) -> str:
 
 
 class Gate:
-    def __init__(self, state_dir: Path, interval_hours: float = 48):
+    def __init__(self, state_dir: Path, interval_hours: float = 20):
         self.state_dir = Path(state_dir)
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.log_path = self.state_dir / "pull_log.jsonl"

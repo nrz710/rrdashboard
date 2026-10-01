@@ -101,6 +101,7 @@
   .toast { position: fixed; bottom: 18px; right: 18px; background: #222; color: #fff; padding: 9px 14px; border-radius: 3px;
     font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
   .toast.show { opacity: .92; }
+  .haltbanner { flex: 1 1 100%; background: #fff3cd; border: 2px solid #8a6d00; color: #3d3000; padding: 8px 12px; font-size: 13px; }
   .hlbar { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; font-size: 12px;
     border: 1px solid var(--border); padding: 6px 10px; background: #fff; }
   .topbar label.hlopt { display: flex; flex-direction: row; gap: 5px; align-items: center; padding: 3px 8px;
@@ -592,6 +593,15 @@ function hlClasses(r) {
   if (h.ctl && info.fa !== undefined && info.fa > h.ctlYear) out.push("hl-ctl");
   return out;
 }
+function haltBannerHTML(st) {
+  const m = String(st.halt_detail || "").match(/^(\S+)\s+(.*)$/);
+  const when = m ? fmtTime(m[1]) : fmtTime(st.last_attempt);
+  const why = m && /403|challenge|block/i.test(m[2]) ? "the data source refused an automated request (HTTP 403)"
+            : m && /429/.test(m[2]) ? "the data source asked for fewer requests (HTTP 429)" : "a request was refused";
+  return `<div class="haltbanner"><b>Data refreshes are paused.</b> On ${esc(when)}, ${why}, so the nightly refresh stopped
+    itself and won't try again until someone clears it. The data shown is from the last successful pull, ${esc(fmtTime(st.last_success))}.
+    Details are in the repository's Issues tab.</div>`;
+}
 function hlBarHTML() {
   const h = hlState(), season = D.index.season;
   const acqYears = Array.from({ length: 10 }, (_, i) => season - 1 - i);
@@ -874,8 +884,8 @@ function renderHead() {
   document.getElementById("topbar").innerHTML =
     `<label>Snapshot<select id="snap">${snaps.map(s => opt(s.id, snapLabel(s.manifest), D.sid)).join("")}</select></label>
      <button id="newer">Check for newer data</button>
-     <div class="status">Last pull: ${esc(fmtTime(st.last_attempt))}. Pulls happen at most once every 48 hours.
-       ${st.halted ? `<div class="warn">Automatic refreshes are paused.</div>` : ""}${warn}</div>
+     <div class="status">Last successful pull: ${esc(fmtTime(st.last_success))}. Data refreshes overnight, once a day.${warn}</div>
+     ${st.halted ? haltBannerHTML(st) : ""}
      ${hlBarHTML()}`;
 }
 

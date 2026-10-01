@@ -1,7 +1,7 @@
 """Settings for the RosterResource dashboard.
 
 Anything that affects how often or how hard we hit FanGraphs lives here,
-but the 48-hour floor itself is hard-coded in gate.py and cannot be lowered
+but the 20-hour floor itself is hard-coded in gate.py and cannot be lowered
 from this file.
 """
 from __future__ import annotations
@@ -147,7 +147,7 @@ REQUEST_TIMEOUT_SECONDS = 30
 MAX_CONSECUTIVE_FAILURES = 3
 
 # Refresh interval in hours. Values below 48 are ignored (gate.py enforces 48).
-MIN_REFRESH_INTERVAL_HOURS = 48
+MIN_REFRESH_INTERVAL_HOURS = 20  # nightly schedule; the code floor is 20 hours
 
 # For manual backfills only: page key -> query parameter that selects a season.
 # Deliberately empty: I have not verified which RosterResource pages accept a

@@ -54,8 +54,11 @@ def _status(data_dir: Path) -> dict:
     except GateClosed:
         return {}
     iso = lambda t: t.isoformat() if t else None  # noqa: E731
+    halt = (data_dir / "state" / "HALT")
+    detail = halt.read_text(encoding="utf-8", errors="replace").strip()[:400] if halt.exists() else None
     return {"last_attempt": iso(s["last_attempt"]), "last_success": iso(s["last_success"]),
-            "next_allowed": iso(s["next_allowed"]) if s["last_attempt"] else None, "halted": s["halted"]}
+            "next_allowed": iso(s["next_allowed"]) if s["last_attempt"] else None, "halted": s["halted"],
+            "halt_detail": detail}
 
 
 # Clean, upper-case titles for the table menus. Matched against the end of the table's

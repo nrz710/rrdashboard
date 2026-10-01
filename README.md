@@ -23,7 +23,7 @@ follow **[DEPLOY.md](DEPLOY.md)**.
 
     RosterResource workflow, refresh (6 h)    `data` branch                 same workflow, site + deploy
     gate check → refresh → publish → push  →  pull log, raw + parsed   →   web/index.html + data → GitHub Pages
-    (at most one pull per 48 h)               snapshots                     https://you.github.io/repo/
+    (nightly; at most one pull per 20 h)               snapshots                     https://you.github.io/repo/
 
 After each pull, `publish` does the heavy work once: it parses every page, matches players
 across tools, and writes pre-parsed files. `python -m rr site` then turns those into the
@@ -44,7 +44,7 @@ proxies, or challenge solving. A 403/429/503, a Cloudflare challenge header, or 
 run refuses until someone investigates and clears it. On GitHub, the workflow also
 opens an issue.
 
-**2. At most one refresh per 48 hours, enforced in code** (`rr/gate.py`). The 48-hour
+**2. At most one refresh per 20 hours, enforced in code** (`rr/gate.py`); the schedule runs it once a night. The 20-hour
 floor is a constant that config can raise but not lower. It's measured from the start
 of the last *attempt*, so failing or misfiring jobs can't exceed it. The check and the
 attempt record happen together under an exclusive lock, and fail closed on an
@@ -68,7 +68,7 @@ page-size limit. If a warning turns out to be real, remove that tool from
 
 ## Running and maintaining it (browser only)
 
-- **Refresh:** automatic, every 6 hours, gated to at most one pull per 48 hours.
+- **Refresh:** automatic, nightly (tries at 3:17, 4:17 and 5:17 AM Pacific), gated to at most one pull per 20 hours.
 - **One workflow, several tasks:** Actions → *RosterResource* → *Run workflow* → *What to do*:
   `refresh`, `install`, `website`, `tests`, `clear-halt`, `republish` (after a parser change),
   `record-prior-pull`. Only `refresh` can contact FanGraphs, and only when the gate allows.
@@ -130,7 +130,7 @@ by-hand command for past seasons and does nothing until `config.SEASON_PARAM` is
   wRC+"), are grouped in the Columns box (with "tick all" per group), and are formatted as
   usual (.280, 25.8%, 3.74). Pitchers' empty batting lines show as blank.
 - **Player Stats** (its own selection; from FanGraphs' major-league leaderboards, 7 extra
-  requests per pull, still inside the 48-hour limit): platform year GS, innings at each
+  requests per pull, still once a night): platform year GS, innings at each
   position, PA, HR, AVG, wRC+, xwOBA, OAA, fWAR, fWAR/700 PA; last 3 years GS, PA, wRC+, OAA,
   fWAR, fWAR/700 PA. fWAR/700 PA = fWAR / PA x 700. The platform year is the season in
   progress (or, before April, the one just finished). Settings: `FETCH_PLAYER_STATS` and
@@ -165,7 +165,7 @@ the first real pull, run `python -m rr inspect` and adjust the lists at the top 
     rr/site.py              builds the website's data from published snapshots
     dashboard.py            optional Streamlit version of the dashboard
     make_demo_data.py       fictional sample snapshot (raw + published)
-    rr/gate.py              48-hour limit, lock, pull log, HALT
+    rr/gate.py              20-hour limit, lock, pull log, HALT
     rr/gatecheck.py         quick gate check for CI (standard library only)
     rr/fetch.py             HTTP with honest User-Agent and block detection
     rr/refresh.py           one gated, paced refresh

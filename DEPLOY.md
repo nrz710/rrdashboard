@@ -86,7 +86,7 @@ that the project isn't installed yet. That's expected.
 19. **Actions → RosterResource → Run workflow**, leave **What to do** on `refresh`, and click
     **Run workflow**.
 20. Wait about 15 minutes. It fetches 97 pages, 6 to 8 seconds apart. Before the first request
-    it saves the attempt, so the 48-hour window is on record even if the job dies midway. When
+    it saves the attempt, so the time of the pull is on record even if the job dies midway. When
     it finishes, the **site** and **deploy** boxes run by themselves.
 21. Reload your link. The dashboard now shows real data.
 
@@ -101,9 +101,9 @@ What else you might see on a refresh run:
   from GitHub's servers. The tool stopped itself as designed and won't try again until you
   clear it. Read the issue before doing anything else.
 
-From now on the refresh runs by itself every 6 hours. Nearly all of those runs just see that
-48 hours haven't passed and stop without contacting FanGraphs; the website updates after
-every new pull.
+From now on the refresh runs by itself every night (it tries at 3:17, 4:17 and 5:17 AM
+Pacific; the first try does the pull and the others stop at the 20-hour gate without
+contacting FanGraphs). The website updates after every new pull.
 
 ---
 
@@ -113,7 +113,7 @@ every new pull.
 
 | Task | What it does | Contacts FanGraphs? |
 |---|---|---|
-| `refresh` | Pull new data if the 48-hour gate allows, then update the website | Only if 48 hours have passed |
+| `refresh` | Pull new data if the 20-hour gate allows, then update the website | Only if 20 hours have passed |
 | `install` | Unpack the project files from the installer (first time, or after pasting a newer installer) | No |
 | `website` | Rebuild and republish the website | No |
 | `tests` | Run the automated tests | No |
@@ -142,6 +142,15 @@ every new pull.
 - **Taking the site down:** **Settings → Pages → Unpublish site**.
 
 ## Troubleshooting
+
+- **The site says "Data refreshes are paused":** FanGraphs (through Cloudflare, its protection
+  service) refused an automated request, so the refresh stopped itself after that one request,
+  as designed, and opened an issue in the repository's **Issues** tab. There is deliberately no
+  workaround in the code (no browser disguise, proxies or challenge solving). To try again:
+  **Actions → RosterResource → Run workflow → `clear-halt`**, then either wait for the night or run
+  **`refresh`**. If it's refused again, it stops again after one request; blocks on GitHub's shared
+  servers can be temporary, and if they persist the options are a different network you control,
+  or asking FanGraphs about permitted access.
 
 - **The link shows README text instead of the dashboard:** **Settings → Pages → Source** isn't
   **GitHub Actions** (step 7). Set it, then run the task `website`.
