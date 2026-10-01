@@ -69,6 +69,17 @@
   .colbox.closed .colsel { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
   button.coltoggle { background: none; border: none; padding: 2px 4px 2px 0; font-size: 13px; font-weight: 400; color: var(--ink); }
   button.coltoggle:hover { background: var(--tint); }
+  .fltbox { border: 1px solid var(--border); background: #fff; padding: 8px 10px; margin: 6px 0 10px; }
+  .fltbox select { padding: 3px 6px; }
+  .fltrow { border-top: 1px solid #eee; padding: 6px 0 2px; }
+  .flthead { display: flex; gap: 10px; align-items: baseline; font-size: 12px; }
+  .flthead .linkish { padding: 0; font-size: 11px; }
+  .fltctl { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 12px; margin-top: 3px; }
+  .fltctl input[type=number] { width: 100px; padding: 3px 5px; }
+  .fltchips { display: flex; flex-wrap: wrap; gap: 4px; flex-basis: 100%; }
+  .fltchips label { display: flex; gap: 4px; align-items: center; border: 1px solid var(--border); padding: 2px 7px; cursor: pointer; font-size: 12px; }
+  .fltchips label.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .fltchips .fltn { font-size: 10px; opacity: .7; }
   .cgroups { max-height: 340px; overflow: auto; }
   .cgroup { margin-bottom: 6px; }
   .cghead { font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: .03em; margin: 4px 0 2px;
@@ -281,6 +292,94 @@ function money(v, mode) {
   else s = "$" + Math.round(a).toLocaleString("en-US");
   return (neg ? "-" : "") + s;
 }
+// ---- column filters: pick a column, then tick values to keep (text) or set a min / max (numbers)
+function isPosCol(c) { return /^(pos|position\d*|positiondb|primarypos)$/.test(normCol(c)); }
+function fTokens(v, c, primary) {  // positions split: "SS/2B" matches SS and 2B (or only SS with "primary")
+  if (isBlank(v)) return ["(blank)"];
+  if (!isPosCol(c)) return [String(v)];
+  const parts = String(v).split(/\s*[\/,]\s*/).filter(Boolean);
+  return primary ? parts.slice(0, 1) : parts;
+}
+function fScale(view, c) { return view && view.formats && view.formats[c] === "pct1" ? 100 : 1; }
+function colKind(rows, c, view) {
+  if (isMoney(view, c) || (view && view.formats && view.formats[c])) return "range";
+  let n = 0, num = 0;
+  for (const r of rows) { const v = r[c]; if (isBlank(v)) continue; n++; if (toNum(v) !== null && !/[a-z]/i.test(String(v).replace(/^[$]/, ""))) num++; if (n >= 600) break; }
+  if (n && num / n >= 0.8) return "range";
+  const distinct = new Set();
+  for (const r of rows) { for (const tk of fTokens(r[c], c)) { distinct.add(tk); if (distinct.size > 120) return "text"; } }
+  return "values";
+}
+function fOptions(rows, c, primary) {
+  const counts = new Map();
+  for (const r of rows) for (const tk of new Set(fTokens(r[c], c, primary))) counts.set(tk, (counts.get(tk) || 0) + 1);
+  return [...counts.entries()].sort((a, b) => (a[0] === "(blank)") - (b[0] === "(blank)") || b[1] - a[1] || String(a[0]).localeCompare(String(b[0])));
+}
+function applyColFilters(rows, filters, view) {
+  for (const f of filters || []) {
+    if (f.mode === "values" && f.values && f.values.length) {
+      const keep = new Set(f.values);
+      rows = rows.filter(r => fTokens(r[f.col], f.col, f.primary).some(tk => keep.has(tk)));
+    } else if (f.mode === "range" && (f.min !== undefined && f.min !== "" || f.max !== undefined && f.max !== "")) {
+      const k = fScale(view, f.col), lo = f.min === "" || f.min === undefined ? null : +f.min, hi = f.max === "" || f.max === undefined ? null : +f.max;
+      rows = rows.filter(r => { const n = toNum(r[f.col]); if (n === null) return false; const x = n * k;
+                               return (lo === null || x >= lo) && (hi === null || x <= hi); });
+    } else if (f.mode === "text" && f.text) {
+      const t = f.text.toLowerCase(); rows = rows.filter(r => !isBlank(r[f.col]) && String(r[f.col]).toLowerCase().includes(t));
+    }
+  }
+  return rows;
+}
+function filtersText(filters, labels, view) {
+  return (filters || []).map(f => {
+    const name = (labels || {})[f.col] || headerLabel(f.col);
+    const show = x => isMoney(view, f.col) && toNum(x) !== null ? money(+x, "long") : fScale(view, f.col) === 100 ? `${x}%` : x;
+    if (f.mode === "values" && f.values && f.values.length) return `${name}${f.primary ? " (primary)" : ""}: ${f.values.join(", ")}`;
+    if (f.mode === "range") {
+      const lo = f.min !== undefined && f.min !== "", hi = f.max !== undefined && f.max !== "";
+      if (lo && hi) return `${name} ${show(f.min)}–${show(f.max)}`; if (lo) return `${name} ≥ ${show(f.min)}`; if (hi) return `${name} ≤ ${show(f.max)}`;
+    }
+    if (f.mode === "text" && f.text) return `${name} contains "${f.text}"`;
+    return "";
+  }).filter(Boolean).join(" · ");
+}
+const FLT = {};  // per filter box: { kinds } from the last draw
+function fltList(id) {
+  if (id === "lg" || id === "cu") { const s = UI[id], k = s.page + "\u0000" + s.table[s.page]; s.cfilters = s.cfilters || {}; return (s.cfilters[k] = s.cfilters[k] || []); }
+  if (id === "cb") return (UI.cb.cfilters = UI.cb.cfilters || []);
+  const p = PANELS[+id.slice(1)]; return (p.colfilters = p.colfilters || []);
+}
+function teamRows(t, teams) { return teams && teams.length ? t.objs.filter(o => teams.includes(o._slug)) : t.objs; }
+function fltCommit(id) { if (id[0] === "b") savePanels(); }
+function filterBoxHTML(id, cols, labels, rows, view) {
+  const filters = fltList(id);
+  const lab = c => (labels || {})[c] || headerLabel(c);
+  FLT[id] = { rows, view };  // used to decide, when a filter is added, between ticking values and a min / max
+  const unit = c => fScale(view, c) === 100 ? " (%)" : isMoney(view, c) ? " ($)" : "";
+  const body = filters.map((f, i) => {
+    let ctl = "";
+    if (f.mode === "values") {
+      const opts = fOptions(rows, f.col, f.primary), on = new Set(f.values || []);
+      ctl = `<span class="hint" style="margin:0">Tick the values to keep:</span>
+        ${isPosCol(f.col) ? `<label title="Unticked: a player listed '2B/SS' counts as SS too. Ticked: only the first position listed counts.">
+          <input type="checkbox" data-fprim="${id}" data-i="${i}" ${f.primary ? "checked" : ""}> Primary position only</label>` : ""}
+        <div class="fltchips">${opts.map(([v, n]) => `<label class="${on.has(v) ? "on" : ""}"><input type="checkbox" data-fval="${id}" data-i="${i}" value="${esc(v)}" ${on.has(v) ? "checked" : ""}> ${esc(v)} <span class="fltn">${n}</span></label>`).join("")}</div>`;
+    } else if (f.mode === "range") {
+      ctl = `<label>at least <input type="number" step="any" data-fmin="${id}" data-i="${i}" value="${esc(f.min ?? "")}"></label>
+             <label>at most <input type="number" step="any" data-fmax="${id}" data-i="${i}" value="${esc(f.max ?? "")}"></label>
+             <span class="hint" style="margin:0">${unit(f.col) ? "in " + unit(f.col).replace(/[()\s]/g, "") : ""}</span>`;
+    } else {
+      ctl = `<label>contains <input type="search" data-ftext="${id}" data-i="${i}" id="ft-${id}-${i}" value="${esc(f.text || "")}"></label>`;
+    }
+    return `<div class="fltrow"><div class="flthead"><b>${esc(lab(f.col))}</b>${ctl.startsWith("<span") ? "" : ""}
+      <button class="linkish" data-fdrop="${id}" data-i="${i}">remove</button></div><div class="fltctl">${ctl}</div></div>`;
+  }).join("");
+  const used = new Set(filters.map(f => f.col));
+  return `<div class="fltbox"><div class="colhead"><b>Filters</b>
+      <select data-fadd="${id}"><option value="">+ Add a filter…</option>${cols.filter(c => !used.has(c)).map(c => `<option value="${esc(c)}">${esc(lab(c))}</option>`).join("")}</select>
+      ${filters.length ? `<button data-fclear="${id}">Clear filters</button>` : `<span class="hint" style="margin:0">Show only rows that match, e.g. POS = SS.</span>`}</div>
+      ${body}</div>`;
+}
 function isMoney(view, col) { return view && view.money ? view.money.has(col) : MONEY.test(String(col)); }
 const isBlank = v => v === null || v === undefined || v === "" || (typeof v === "number" && isNaN(v));
 // statistics formats: pct1 25.8%, avg3 .280, dec2 3.74, dec1 10.6, int 158
@@ -427,7 +526,7 @@ function tableHTML(view, maxRows = SHOW) {
         txt = `<a href="${esc(href)}" target="_blank" rel="noopener">${txt}</a>`;
       }
       if (c === "Team" && NAME2SLUG[r[c]]) txt = `<span title="${esc(r[c])}">${TEAM[NAME2SLUG[r[c]]].abbr}</span>`;
-      const ctr = (cc && !num && txt) || (view.center && view.center.has(c)) ? " ctr" : "";  // contract status: centered
+      const ctr = (cc && !num && txt) || (view.center && view.center.has(c)) || isPosCol(c) ? " ctr" : "";  // statuses & positions: centered
       return `<td class="${num ? "num" : ""} ${cc}${ctr}"${tip}>${txt}</td>`;
     }).join("") + "</tr>";
   }).join("");
@@ -692,6 +791,7 @@ async function panelView(p) {
     const slugs = (p.teams || []).filter(s => s && s !== "*");
     let rows = slugs.length ? t.objs.filter(o => slugs.includes(o._slug)) : t.objs;
     rows = applyStatus(rows, p.status_filter);
+    rows = applyColFilters(rows, p.colfilters, { money: new Set(t.money_cols || []), formats: t.formats || {} });
     if (kind === "summary") {
       const r = rollup(rows, p.by, p.value, p.how);
       const m = new Set(p.how !== "count" && (t.money_cols || []).includes(p.value) ? [r.cols[1]] : []);
@@ -709,7 +809,11 @@ async function panelView(p) {
              formats: t.formats || {}, center: new Set(t.center_cols || []), tips: t.tips, legend: t.legend,
              moneyMode: p.money || "long" }, p.hsort);
   }
-  if (kind === "combined") return applySort({ ...(await combine(p.spec)), moneyMode: p.money || "long" }, p.hsort);
+  if (kind === "combined") {
+    const v = { ...(await combine(p.spec)), moneyMode: p.money || "long" };
+    v.rows = applyColFilters(v.rows, p.colfilters, v);
+    return applySort(v, p.hsort);
+  }
   if (kind === "player") {
     const rows = [];
     for (const s of await profile(p.player_key)) {
@@ -723,11 +827,12 @@ async function panelView(p) {
   }
   return null;
 }
-function describe(p) {
+function describe(p, labels, view) {
   const k = p.kind || "table";
   const f = p.status_filter || (p.spec && p.spec.status_filter);
   const tail = f && f.statuses && f.statuses.length ? ` · ${f.year}: ${f.statuses.map(c => (STATUS_NAMES[c] || c)).join(", ")}` : "";
-  return describeBase(p) + tail;
+  const ft = filtersText(p.colfilters, labels, view);
+  return describeBase(p) + tail + (ft ? " · " + ft : "");
 }
 const STATUS_NAMES = { "pay-fa": "Free agent", "pay-minor": "Not on 40-man", "pay-arb": "Arbitration", "pay-prearb": "Pre-arbitration",
   "pay-club": "Club option", "pay-player": "Player option / opt-out", "pay-mutual": "Mutual option", "pay-vesting": "Vesting option",
@@ -817,7 +922,7 @@ async function viewLeague() {
   const sfYears = Object.keys(t.cell_cls || {});
   const sf = sfYears.length ? sfState(s, sfYears) : null;
   const panel = { kind: "table", page: s.page, teams: s.teams.length ? [...s.teams] : ["*"], table: tid, columns: cols,
-                  filter: s.filter, status_filter: sf, hsort: sortState("lg"),
+                  filter: s.filter, status_filter: sf, hsort: sortState("lg"), colfilters: fltList("lg").map(f => ({ ...f })),
                   title: `${titleOf(m, s.page, tid)}: ${s.teams.length ? s.teams.map(x => TEAM[x].abbr).join(", ") : "ALL 30 TEAMS"}` };
   const view = await panelView(panel);
   view.sortCtx = "lg";
@@ -844,11 +949,12 @@ async function viewLeague() {
       <label>Table<select id="lg-table">${cov.map(c => opt(c.table, c.title || c.table, tid)).join("")}</select></label>
     </div>
     ${colBoxHTML("lg", all, cols, t.labels, t.noise, s.more, defaultCols(t, all), null, { groups: t.groups, order: t.group_order })}
+    ${filterBoxHTML("lg", [...(t.has_team ? [] : []), ...all], t.labels, teamRows(t, s.teams), { money: new Set(t.money_cols || []), formats: t.formats || {} })}
     <div class="row">
       <label>Keep rows containing<input type="search" id="lg-filter" value="${esc(s.filter)}"></label>
       <span class="hint" style="margin:0 0 6px;align-self:end">Click a column title to sort.</span>
     </div>
-    ${sectionHTML(panel.title, [sfText(sf, t.legend), `${view.rows.length.toLocaleString()} rows`].filter(Boolean).join(" · "))}${tableHTML(view)}
+    ${sectionHTML(panel.title, [sfText(sf, t.legend), filtersText(panel.colfilters, t.labels, view), `${view.rows.length.toLocaleString()} rows`].filter(Boolean).join(" · "))}${tableHTML(view)}
     <div class="row"><button class="primary" id="lg-add">Add this table to the dashboard</button>
       <button id="lg-dl">Download every ${esc(pageLabel(s.page))} table, all teams (.xlsx)</button>
       <button id="lg-csv">Download this table (.csv)</button>
@@ -922,6 +1028,8 @@ async function viewCombine() {
   const cbYears = probe.coloredCols || [];
   spec.status_filter = cbYears.length ? sfState(s, cbYears) : null;
   const res = applySort(spec.status_filter ? await combine(spec) : probe, sortState("cb"));
+  const cbBase = res.rows;
+  res.rows = applyColFilters(res.rows, fltList("cb"), res);
   res.sortCtx = "cb";
   UI._cbSpec = spec;
   html += `<div class="row">
@@ -930,8 +1038,9 @@ async function viewCombine() {
       <label class="narrow" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="cb-amb" ${s.amb ? "checked" : ""}> Include ambiguous names</label>
     </div>${teamStripHTML(s.teams, "cb")}
     ${cbYears.length ? statusFilterHTML("cb", cbYears, res.legend || probe.legend, s.sf) : ""}
+    ${filterBoxHTML("cb", res.cols.filter(c => c !== "Player"), res.labels, cbBase, res)}
     <div class="row"><label>Panel title<input type="text" id="cb-title" value="${esc(s.title)}"></label></div>
-    ${sectionHTML(s.title, [sfText(spec.status_filter, res.legend || probe.legend), `${res.rows.length.toLocaleString()} players`].filter(Boolean).join(" · "))}${tableHTML(res)}
+    ${sectionHTML(s.title, [sfText(spec.status_filter, res.legend || probe.legend), filtersText(fltList("cb"), res.labels, res), `${res.rows.length.toLocaleString()} players`].filter(Boolean).join(" · "))}${tableHTML(res)}
     <div class="row"><button class="primary" id="cb-add">Add to the dashboard</button><button id="cb-clear">Clear columns</button></div>
     <details><summary class="hint" style="cursor:pointer">How players were matched</summary>
       <div class="hint">Rows are joined by player ID when a table has one, otherwise by name when exactly one player has that name. Ambiguous names are kept apart rather than guessed.</div>
@@ -964,7 +1073,7 @@ async function viewCustom() {
   const sfYears = Object.keys(t.cell_cls || {});
   const sf = sfYears.length ? sfState(s, sfYears) : null;
   const panel = { kind: "table", page: s.page, teams: s.teams.length ? [...s.teams] : ["*"], table: tid, columns: cols,
-                  filter: s.filter, title, status_filter: sf, hsort: sortState("cu") };
+                  filter: s.filter, title, status_filter: sf, hsort: sortState("cu"), colfilters: fltList("cu").map(f => ({ ...f })) };
   UI._cuPanel = panel;
   const view = await panelView(panel);
   view.sortCtx = "cu";
@@ -975,12 +1084,13 @@ async function viewCustom() {
       <label>Table<select id="cu-table">${cov.map(c => opt(c.table, c.title || c.table, tid)).join("")}</select></label>
     </div>
     ${colBoxHTML("cu", all, cols, t.labels, t.noise, s.more, defaultCols(t, all), null, { groups: t.groups, order: t.group_order })}
+    ${filterBoxHTML("cu", all, t.labels, teamRows(t, s.teams), { money: new Set(t.money_cols || []), formats: t.formats || {} })}
     <div class="row">
       <label>Keep rows containing<input type="search" id="cu-filter" value="${esc(s.filter)}"></label>
       <span class="hint" style="margin:0 0 6px;align-self:end">Click a column title to sort.</span>
       <label>Panel title<input type="text" id="cu-title" value="${esc(title)}"></label>
     </div>
-    ${sectionHTML(title, `${view.rows.length.toLocaleString()} rows`)}${tableHTML(view)}
+    ${sectionHTML(title, [filtersText(panel.colfilters, t.labels, view), `${view.rows.length.toLocaleString()} rows`].filter(Boolean).join(" · "))}${tableHTML(view)}
     <div class="row"><button class="primary" id="cu-add">Add to the dashboard</button></div>`;
 }
 
@@ -996,10 +1106,10 @@ async function viewBoard() {
     try { v = await panelView(p); } catch (e) { console.error(e); }
     const moneySel = v && v.money && v.money.size
       ? `<label class="moneyfmt">Money <select data-moneyfmt="${i}">${opt("long", "LONG ($1,000,000)", p.money || "long")}${opt("short", "SHORT ($1.000)", p.money || "long")}</select></label>` : "";
-    html += `<div class="card">${sectionHTML(p.title, `${describe(p)}. ${v ? v.rows.length.toLocaleString() : 0} rows`)}
+    html += `<div class="card">${sectionHTML(p.title, `${describe(p, v && v.labels, v)}. ${v ? v.rows.length.toLocaleString() : 0} rows`)}
       <div class="paneltools">${moneySel}<button data-up="${i}" ${i === 0 ? "disabled" : ""} title="Move up">↑</button>
       <button data-down="${i}" ${i === PANELS.length - 1 ? "disabled" : ""} title="Move down">↓</button>
-      ${(p.kind || "table") === "table" || p.kind === "combined" ? `<button data-edit="${i}" class="${UI.edit === i ? "primary" : ""}">${UI.edit === i ? "Done" : "Edit columns"}</button>` : ""}
+      ${(p.kind || "table") === "table" || p.kind === "combined" ? `<button data-edit="${i}" class="${UI.edit === i ? "primary" : ""}">${UI.edit === i ? "Done" : "Edit columns & filters"}</button>` : ""}
       <button data-csv="${i}">CSV</button><button data-del="${i}" title="Remove">Remove</button></div>
       ${UI.edit === i ? await panelColEditor(p, i) : ""}
       ${v ? tableHTML(Object.assign(v, { sortCtx: "b" + i })) : `<div class="notice">Not available in the selected snapshot.</div>`}
@@ -1013,16 +1123,21 @@ async function panelColEditor(p, i) {
   if (p.kind === "combined") {
     const labels = p.spec.fields.map(f => f.label || f.column);
     const chips = labels.map((c, j) => `<span class="cchip">${esc(c)}<button data-cmove="${id}" data-i="${j}" data-dir="-1" ${j === 0 ? "disabled" : ""}>◀</button><button data-cmove="${id}" data-i="${j}" data-dir="1" ${j === labels.length - 1 ? "disabled" : ""}>▶</button><button data-cdel="${id}" data-i="${j}">✕</button></span>`).join("");
+    const cv = await combine(p.spec);
     return `<div class="colbox"><div class="colhead"><b>Columns</b><span class="hint" style="margin:0">Reorder or remove columns here. To add columns from other tools, build the table in Combine by Player.</span></div>
-      <div class="colsel"><b>In order:</b> ${chips || `<i class="hint" style="margin:0">none</i>`}</div></div>`;
+      <div class="colsel"><b>In order:</b> ${chips || `<i class="hint" style="margin:0">none</i>`}</div></div>`
+      + filterBoxHTML(id, cv.cols.filter(c => c !== "Player"), cv.labels, cv.rows, cv);
   }
   const t = await table(p.page, p.table);
   if (!t) return "";
   const all = pickOrder(t, pickable(t));
   const cols = (Array.isArray(p.columns) ? p.columns : defaultCols(t, all)).filter(c => all.includes(c));
+  const slugs = (p.teams || []).filter(x => x && x !== "*");
   return colBoxHTML(id, all, cols, t.labels, t.noise, UI.editMore, defaultCols(t, all),
                     "Tick columns to add them to this panel, in the order you tick them. Changes save automatically.",
-                    { groups: t.groups, order: t.group_order });
+                    { groups: t.groups, order: t.group_order })
+       + filterBoxHTML(id, all, t.labels, slugs.length ? t.objs.filter(o => slugs.includes(o._slug)) : t.objs,
+                       { money: new Set(t.money_cols || []), formats: t.formats || {} });
 }
 
 // ------------------------------------------------------------------ Export ---
@@ -1145,6 +1260,8 @@ document.addEventListener("click", async e => {
   }
   if (d.cdel) { colList(d.cdel).splice(+d.i, 1); colCommit(d.cdel); return render(); }
   if (d.ctoggle) { COL_CLOSED[d.ctoggle] = !COL_CLOSED[d.ctoggle]; return render(); }
+  if (d.fdrop) { fltList(d.fdrop).splice(+d.i, 1); fltCommit(d.fdrop); return render(); }
+  if (d.fclear) { fltList(d.fclear).splice(0); fltCommit(d.fclear); return render(); }
   if (d.cgroup) { const cur = colList(d.cgroup); colReplace(d.cgroup, [...cur, ...(COLS[d.cgroup].groups[d.g] || []).filter(c => !cur.includes(c))]); return render(); }
   if (d.cnone) { colReplace(d.cnone, []); return render(); }
   if (d.call) { const cur = colList(d.call); colReplace(d.call, [...cur, ...COLS[d.call].all.filter(c => !cur.includes(c))]); return render(); }
@@ -1194,7 +1311,8 @@ document.addEventListener("click", async e => {
       for (const c of s.pick) s.fields.push({ page: s.page, table: tid, column: c, agg: s.how, label: lt[c] || headerLabel(c) });
       s.pick = []; s.colOpen = false; return render();
     }
-    case "cb-add": return addPanel({ kind: "combined", title: UI.cb.title, spec: { ...UI._cbSpec }, hsort: sortState("cb") });
+    case "cb-add": return addPanel({ kind: "combined", title: UI.cb.title, spec: { ...UI._cbSpec }, hsort: sortState("cb"),
+                                     colfilters: fltList("cb").map(f => ({ ...f })) });
     case "cb-clear": UI.cb.fields = []; return render();
     case "cu-add": return addPanel({ ...UI._cuPanel });
     case "lay-save": return download("rr_layout.json", JSON.stringify(PANELS, null, 2), "application/json");
@@ -1223,6 +1341,22 @@ document.addEventListener("change", async e => {
   if (d.col) {
     const boxes = [...document.querySelectorAll(`input[data-col="${d.col}"]`)];
     setCols(d.col, boxes.filter(x => x.checked).map(x => x.value)); return render();
+  }
+  if (d.fadd) {
+    if (!el.value) return;
+    const mode = FLT[d.fadd] ? colKind(FLT[d.fadd].rows, el.value, FLT[d.fadd].view) : "values";
+    fltList(d.fadd).push({ col: el.value, mode, values: [], min: "", max: "", text: "" });
+    fltCommit(d.fadd); return render();
+  }
+  if (d.fval) {
+    const f = fltList(d.fval)[+d.i], i = f.values.indexOf(el.value);
+    if (el.checked && i < 0) f.values.push(el.value); else if (!el.checked && i >= 0) f.values.splice(i, 1);
+    fltCommit(d.fval); return render();
+  }
+  if (d.fprim) { const f = fltList(d.fprim)[+d.i]; f.primary = el.checked; fltCommit(d.fprim); return render(); }
+  if (d.fmin || d.fmax) {
+    const id = d.fmin || d.fmax, f = fltList(id)[+d.i];
+    f[d.fmin ? "min" : "max"] = el.value; fltCommit(id); return render();
   }
   if (d.cbox) {
     const arr = colList(d.cbox), i = arr.indexOf(el.value);
@@ -1272,6 +1406,7 @@ document.addEventListener("change", async e => {
 
 document.addEventListener("input", e => {
   const el = e.target;
+  if (el.dataset && el.dataset.ftext) { const f = fltList(el.dataset.ftext)[+el.dataset.i]; f.text = el.value; fltCommit(el.dataset.ftext); later(render); return; }
   const map = { "lg-filter": v => { UI.lg.filter = v; }, "cu-filter": v => { UI.cu.filter = v; }, "pl-q": v => { UI.pl.q = v; } };
   if (map[el.id]) { map[el.id](el.value); later(render); }
 });

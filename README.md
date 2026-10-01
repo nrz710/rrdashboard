@@ -135,6 +135,11 @@ by-hand command for past seasons and does nothing until `config.SEASON_PARAM` is
   fWAR, fWAR/700 PA. fWAR/700 PA = fWAR / PA x 700. The platform year is the season in
   progress (or, before April, the one just finished). Settings: `FETCH_PLAYER_STATS` and
   `STATS_YEARS_BACK` in `rr/config.py`. The website build log reports any stat it couldn't find.
+- **Filters** (All Teams, Custom Panel, Combine by Player, and each dashboard panel via *Edit
+  columns & filters*): pick a column, then tick the values to keep (text columns, with counts)
+  or set a minimum / maximum (numbers; percentages and dollars entered as shown). Position
+  columns match any listed position ("2B/SS" counts as SS) unless *Primary position only* is
+  ticked. Filters combine, show in the section header, and are saved with dashboard panels.
 - **Custom Panel**, **Dashboard**, **Export**: build, arrange, and download. Dashboard
   panels that show money offer LONG ($1,000,000) or SHORT ($1.000, $.750) formatting.
 
