@@ -1,0 +1,13 @@
+{"ts": "2026-09-24T19:21:33+00:00", "event": "attempt_start", "snapshot": "20260924T192133Z_current_2026", "kind": "current", "season": 2026, "planned": 97}
+{"ts": "2026-09-24T19:33:28+00:00", "event": "success", "snapshot": "20260924T192133Z_current_2026", "ok": 97}
+{"ts": "2026-09-26T21:16:19+00:00", "event": "attempt_start", "snapshot": "20260926T211619Z_current_2026", "kind": "current", "season": 2026, "planned": 97}
+{"ts": "2026-09-26T21:16:21+00:00", "event": "blocked", "snapshot": "20260926T211619Z_current_2026", "ok": 0, "detail": "https://www.fangraphs.com/roster-resource/depth-charts/athletics -> HTTP 403, looks like a Cloudflare challenge/block"}
+{"ts": "2026-10-06T21:35:02+00:00", "event": "halt_cleared"}
+{"ts": "2026-10-06T21:35:24+00:00", "event": "attempt_start", "snapshot": "20261006T213524Z_current_2026", "kind": "current", "season": 2026, "planned": 104}
+{"ts": "2026-10-06T21:48:43+00:00", "event": "success", "snapshot": "20261006T213524Z_current_2026", "ok": 104}
+{"ts": "2026-10-08T17:25:28+00:00", "event": "attempt_start", "snapshot": "20261008T172528Z_current_2026", "kind": "current", "season": 2026, "planned": 104}
+{"ts": "2026-10-08T17:39:45+00:00", "event": "success", "snapshot": "20261008T172528Z_current_2026", "ok": 104}
+{"ts": "2026-10-09T17:01:04+00:00", "event": "attempt_start", "snapshot": "20261009T170104Z_current_2026", "kind": "current", "season": 2026, "planned": 104}
+{"ts": "2026-10-09T17:15:00+00:00", "event": "success", "snapshot": "20261009T170104Z_current_2026", "ok": 104}
+{"ts": "2026-10-10T15:53:21+00:00", "event": "attempt_start", "snapshot": "20261010T155321Z_current_2026", "kind": "current", "season": 2026, "planned": 104}
+{"ts": "2026-10-10T16:03:59+00:00", "event": "partial", "snapshot": "20261010T155321Z_current_2026", "ok": 85, "failed": 19, "status": "aborted"}
